@@ -52,11 +52,11 @@ export class WireTool {
   _snap(wx, wy) {
     const worldR = WIRE_SNAP_PX / (GRID_PX * this.renderer.zoom);
     let best = null, bestDist = worldR;
-    // 1. Pins
+    // 1. Pins (offsetX/Y are canvas-px units → divide by GRID_PX for world coords)
     for (const comp of Object.values(state.schematic.components)) {
       for (const pin of comp.pins) {
-        const px = comp.x + pin.offsetX;
-        const py = comp.y + pin.offsetY;
+        const px = comp.x + pin.offsetX / GRID_PX;
+        const py = comp.y + pin.offsetY / GRID_PX;
         const d  = Math.hypot(px - wx, py - wy);
         if (d < bestDist) { bestDist = d; best = { x: px, y: py }; }
       }
@@ -153,8 +153,8 @@ export class WireTool {
   _connectPinsAtPoint(x, y, netId) {
     for (const comp of Object.values(state.schematic.components)) {
       for (const pin of comp.pins) {
-        const px = comp.x + pin.offsetX;
-        const py = comp.y + pin.offsetY;
+        const px = comp.x + pin.offsetX / GRID_PX;
+        const py = comp.y + pin.offsetY / GRID_PX;
         if (Math.abs(px - x) < 1 && Math.abs(py - y) < 1) {
           pin.netId = netId;
           // Record pinRef on net
@@ -170,11 +170,10 @@ export class WireTool {
   }
 
   _netAtPoint(x, y) {
-    // Check pins
     for (const comp of Object.values(state.schematic.components)) {
       for (const pin of comp.pins) {
-        if (Math.abs(comp.x + pin.offsetX - x) < 1 &&
-            Math.abs(comp.y + pin.offsetY - y) < 1) {
+        if (Math.abs(comp.x + pin.offsetX / GRID_PX - x) < 0.5 &&
+            Math.abs(comp.y + pin.offsetY / GRID_PX - y) < 0.5) {
           return pin.netId;
         }
       }
@@ -300,8 +299,8 @@ function _findNetAtPoint(x, y) {
   }
   for (const comp of Object.values(state.schematic.components)) {
     for (const pin of comp.pins) {
-      if (Math.abs(comp.x + pin.offsetX - x) < 2 &&
-          Math.abs(comp.y + pin.offsetY - y) < 2) {
+      if (Math.abs(comp.x + pin.offsetX / GRID_PX - x) < 0.5 &&
+          Math.abs(comp.y + pin.offsetY / GRID_PX - y) < 0.5) {
         return pin.netId;
       }
     }

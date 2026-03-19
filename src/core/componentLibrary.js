@@ -16,8 +16,8 @@ export const COMPONENT_LIBRARY = [
     footprintId:  'R_0805',
     spiceModel:   { type: 'R', directive: null },
     pins: [
-      P(1, 'P1', PinType.PASSIVE, -20, 0),
-      P(2, 'P2', PinType.PASSIVE,  20, 0),
+      P(1, 'P1', PinType.PASSIVE, -30, 0),   // bw(18)+lead(12)=30 px at z=1
+      P(2, 'P2', PinType.PASSIVE,  30, 0),
     ],
   },
   {
@@ -40,8 +40,8 @@ export const COMPONENT_LIBRARY = [
     footprintId:  'LED_0805',
     spiceModel:   { type: 'D', directive: '.model DLED D(Is=1e-10 N=2 RS=1)' },
     pins: [
-      P(1, 'A',  PinType.PASSIVE, -20, 0),
-      P(2, 'K',  PinType.PASSIVE,  20, 0),
+      P(1, 'A',  PinType.PASSIVE, -24, 0),   // r(12)+lead(12)=24 px at z=1
+      P(2, 'K',  PinType.PASSIVE,  24, 0),
     ],
   },
 

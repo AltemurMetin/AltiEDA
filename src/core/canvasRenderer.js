@@ -178,8 +178,8 @@ export class CanvasRenderer {
     const lw  = Math.max(1.5, 2 * this.zoom);
     for (const comp of Object.values(state.schematic.components)) {
       for (const pin of comp.pins) {
-        const px = comp.x + pin.offsetX;
-        const py = comp.y + pin.offsetY;
+        const px = comp.x + pin.offsetX / GRID;   // offsetX is in canvas-px units → divide by GRID
+        const py = comp.y + pin.offsetY / GRID;
         const s  = this.w2s(px, py);
         const connected = !!pin.netId;
         ctx.strokeStyle = connected ? '#4ade80' : '#60a5fa';
@@ -492,68 +492,96 @@ export class CanvasRenderer {
     this._pinDot(0, -20 * z, comp.selected);
   }
 
-  /* Generic IC body */
+  /* Generic IC body — draws pins at their actual (offsetX*z, offsetY*z) positions */
   _symIC(comp) {
-    const { ctx, zoom } = this;
-    const z = zoom;
-    const pins  = comp.pins ?? [];
-    const leftP  = pins.filter((_, i) => i % 2 === 0);
-    const rightP = pins.filter((_, i) => i % 2 === 1);
-    const rows   = Math.max(leftP.length, rightP.length, 1);
-
-    const pinSpacing = 16 * z;
-    const bodyH   = rows * pinSpacing + 14 * z;
-    const bodyW   = 60 * z;
+    const { ctx, zoom: z } = this;
+    const pins = comp.pins ?? [];
+    if (pins.length === 0) return;
+    const lw      = comp.selected ? Math.max(2, 2*z) : Math.max(1, 1.2*z);
     const leadLen = 14 * z;
-    const hw = bodyW / 2, hh = bodyH / 2;
+
+    // Separate pins by side (offsetX < 0 = left, > 0 = right, 0 = top/bottom)
+    const leftPins   = pins.filter(p => p.offsetX < 0);
+    const rightPins  = pins.filter(p => p.offsetX > 0);
+    const topPins    = pins.filter(p => p.offsetX === 0 && p.offsetY <= 0);
+    const bottomPins = pins.filter(p => p.offsetX === 0 && p.offsetY > 0);
+
+    // Body bounds: inset from pin endpoints by leadLen
+    const allPx = pins.map(p => p.offsetX * z);
+    const allPy = pins.map(p => p.offsetY * z);
+    const leftEdge   = (leftPins.length   > 0 ? Math.max(...leftPins.map(p => p.offsetX * z))   : Math.min(...allPx)) + leadLen;
+    const rightEdge  = (rightPins.length  > 0 ? Math.min(...rightPins.map(p => p.offsetX * z))  : Math.max(...allPx)) - leadLen;
+    const topEdge    = Math.min(...allPy) - 12 * z;
+    const bottomEdge = Math.max(...allPy) + 12 * z;
 
     // Body
     ctx.fillStyle   = C.compBody;
     ctx.strokeStyle = comp.selected ? C.selected : C.compBorder;
-    ctx.lineWidth   = comp.selected ? Math.max(2, 2 * z) : Math.max(1, 1.2 * z);
+    ctx.lineWidth   = lw;
     ctx.beginPath();
-    ctx.roundRect(-hw, -hh, bodyW, bodyH, 3 * z);
+    ctx.roundRect(leftEdge, topEdge, rightEdge - leftEdge, bottomEdge - topEdge, 3 * z);
     ctx.fill(); ctx.stroke();
 
-    // Component name
-    ctx.fillStyle  = C.compText;
-    ctx.font       = `bold ${Math.max(7, 9 * z)}px monospace`;
-    ctx.textAlign  = 'center';
+    // Name + value centred in body
+    const cx = (leftEdge + rightEdge) / 2;
+    ctx.fillStyle    = C.compText;
+    ctx.font         = `bold ${Math.max(7, 9*z)}px monospace`;
+    ctx.textAlign    = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(comp.partName.substring(0, 12), 0, -hh + 5 * z);
-
-    // Value
-    ctx.fillStyle = C.compValue;
-    ctx.font      = `${Math.max(6, 8 * z)}px monospace`;
-    ctx.fillText(comp.value || '', 0, -hh + 16 * z);
+    ctx.fillText(comp.partName.substring(0, 12), cx, topEdge + 5 * z);
+    ctx.fillStyle    = C.compValue;
+    ctx.font         = `${Math.max(6, 7*z)}px monospace`;
+    ctx.fillText(comp.value || '', cx, topEdge + 17 * z);
     ctx.textBaseline = 'alphabetic';
 
-    // Pins
-    const drawPin = (pin, side, idx) => {
-      const y   = -hh + (idx + 0.5) * pinSpacing + 8 * z;
-      const x0  = side === 'left' ? -hw : hw;
-      const x1  = side === 'left' ? -(hw + leadLen) : hw + leadLen;
-      const txtX = side === 'left' ? x0 + 3 * z : x0 - 3 * z;
-
-      // Lead line
+    // Draw left pins
+    for (const pin of leftPins) {
+      const px = pin.offsetX * z, py = pin.offsetY * z;
+      const bx = px + leadLen;   // body edge
       ctx.strokeStyle = comp.selected ? C.selected : C.pin;
       ctx.lineWidth   = Math.max(1, 1.2 * z);
-      ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
-
-      // Pin endpoint dot
-      this._pinDot(x1, y, comp.selected);
-
-      // Pin name inside body
-      ctx.fillStyle  = comp.selected ? C.selected : C.pin;
-      ctx.font       = `${Math.max(5, 7 * z)}px monospace`;
-      ctx.textAlign  = side === 'left' ? 'left' : 'right';
+      ctx.beginPath(); ctx.moveTo(bx, py); ctx.lineTo(px, py); ctx.stroke();
+      this._pinDot(px, py, comp.selected);
+      // Pin name
+      ctx.fillStyle    = comp.selected ? C.selected : C.pin;
+      ctx.font         = `${Math.max(5, 7*z)}px monospace`;
+      ctx.textAlign    = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillText(pin.name.substring(0, 8), txtX, y);
+      ctx.fillText(pin.name.substring(0, 9), bx + 2 * z, py);
       ctx.textBaseline = 'alphabetic';
-    };
+    }
 
-    leftP.forEach((p, i)  => drawPin(p, 'left',  i));
-    rightP.forEach((p, i) => drawPin(p, 'right', i));
+    // Draw right pins
+    for (const pin of rightPins) {
+      const px = pin.offsetX * z, py = pin.offsetY * z;
+      const bx = px - leadLen;
+      ctx.strokeStyle = comp.selected ? C.selected : C.pin;
+      ctx.lineWidth   = Math.max(1, 1.2 * z);
+      ctx.beginPath(); ctx.moveTo(bx, py); ctx.lineTo(px, py); ctx.stroke();
+      this._pinDot(px, py, comp.selected);
+      ctx.fillStyle    = comp.selected ? C.selected : C.pin;
+      ctx.font         = `${Math.max(5, 7*z)}px monospace`;
+      ctx.textAlign    = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(pin.name.substring(0, 9), bx - 2 * z, py);
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    // Draw top / bottom pins (offsetX = 0)
+    for (const pin of [...topPins, ...bottomPins]) {
+      const px = pin.offsetX * z, py = pin.offsetY * z;
+      const by = pin.offsetY > 0 ? bottomEdge : topEdge;
+      ctx.strokeStyle = comp.selected ? C.selected : C.pin;
+      ctx.lineWidth   = Math.max(1, 1.2 * z);
+      ctx.beginPath(); ctx.moveTo(px, by); ctx.lineTo(px, py); ctx.stroke();
+      this._pinDot(px, py, comp.selected);
+      ctx.fillStyle    = comp.selected ? C.selected : C.pin;
+      ctx.font         = `${Math.max(5, 7*z)}px monospace`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = pin.offsetY > 0 ? 'top' : 'bottom';
+      ctx.fillText(pin.name.substring(0, 9), px, by + (pin.offsetY > 0 ? 2 * z : -2 * z));
+      ctx.textBaseline = 'alphabetic';
+    }
   }
 
   /* Helper: pin endpoint circle */
