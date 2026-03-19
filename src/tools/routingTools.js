@@ -44,9 +44,24 @@ export class WireTool {
     this._previewWire = null;
   }
 
+  /** Snap to nearest pin within pinSnapRadius world units, else grid-snap */
+  _pinSnap(wx, wy, pinSnapRadius = 6) {
+    let best = null, bestDist = pinSnapRadius;
+    for (const comp of Object.values(state.schematic.components)) {
+      for (const pin of comp.pins) {
+        const px = comp.x + pin.offsetX;
+        const py = comp.y + pin.offsetY;
+        const d  = Math.hypot(px - wx, py - wy);
+        if (d < bestDist) { bestDist = d; best = { x: px, y: py, pin, comp }; }
+      }
+    }
+    if (best) return { x: best.x, y: best.y };
+    return this.renderer.snapToGrid(wx, wy);
+  }
+
   /** Called when the user clicks to start drawing */
   begin(worldX, worldY) {
-    const snapped = this.renderer.snapToGrid(worldX, worldY);
+    const snapped = this._pinSnap(worldX, worldY);
     this.startX   = snapped.x;
     this.startY   = snapped.y;
     this.active   = true;
@@ -63,8 +78,7 @@ export class WireTool {
   /** Called on mouse-move – updates preview */
   preview(worldX, worldY) {
     if (!this.active) return null;
-    const snapped = this.renderer.snapToGrid(worldX, worldY);
-    // Orthogonal routing: H then V
+    const snapped = this._pinSnap(worldX, worldY);
     this._previewWire = {
       x1: this.startX, y1: this.startY,
       x2: snapped.x,   y2: snapped.y,
@@ -75,7 +89,7 @@ export class WireTool {
   /** Called on click – commits segment */
   commit(worldX, worldY) {
     if (!this.active) return null;
-    const snapped = this.renderer.snapToGrid(worldX, worldY);
+    const snapped = this._pinSnap(worldX, worldY);
 
     // Don't draw zero-length wires
     if (snapped.x === this.startX && snapped.y === this.startY) return null;
@@ -109,6 +123,10 @@ export class WireTool {
     const net = state.schematic.nets[wire.netId];
     if (net) net.wireIds.push(wire.id);
 
+    // Assign netId to any pins at start or end of this wire
+    this._connectPinsAtPoint(this.startX, this.startY, wire.netId);
+    this._connectPinsAtPoint(snapped.x,   snapped.y,   wire.netId);
+
     // Chain: end of this wire becomes start of next
     this.startX = snapped.x;
     this.startY = snapped.y;
@@ -119,6 +137,25 @@ export class WireTool {
   end() { this.active = false; this._previewWire = null; }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
+  _connectPinsAtPoint(x, y, netId) {
+    for (const comp of Object.values(state.schematic.components)) {
+      for (const pin of comp.pins) {
+        const px = comp.x + pin.offsetX;
+        const py = comp.y + pin.offsetY;
+        if (Math.abs(px - x) < 1 && Math.abs(py - y) < 1) {
+          pin.netId = netId;
+          // Record pinRef on net
+          const net = state.schematic.nets[netId];
+          if (net) {
+            net.pinRefs = net.pinRefs ?? [];
+            const already = net.pinRefs.some(r => r.componentId === comp.id && r.pinNumber === pin.number);
+            if (!already) net.pinRefs.push({ componentId: comp.id, pinNumber: pin.number });
+          }
+        }
+      }
+    }
+  }
+
   _netAtPoint(x, y) {
     // Check pins
     for (const comp of Object.values(state.schematic.components)) {

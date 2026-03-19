@@ -571,10 +571,12 @@ document.getElementById('ctx-connections')?.addEventListener('click', () => {
   hideCtxMenu();
 });
 
-// Close context menu on click outside
-document.addEventListener('click', e => {
+// Close context menu on click or touch outside
+function _dismissMenus(e) {
   if (!ctxMenu.contains(e.target)) hideCtxMenu();
-});
+}
+document.addEventListener('click',      _dismissMenus);
+document.addEventListener('touchstart', _dismissMenus, { passive: true });
 
 // Right-click on canvas → context menu
 canvas.addEventListener('contextmenu', e => {

@@ -79,6 +79,8 @@ export class CanvasRenderer {
   snap(wx, wy) {
     return { x: Math.round(wx), y: Math.round(wy) };
   }
+  // Alias used by routing tools
+  snapToGrid(wx, wy) { return this.snap(wx, wy); }
   screenToWorld(sx, sy) { return this.s2w(sx, sy); }
 
   /* ── Pan / Zoom ─────────────────────────────────────────────────────────── */
@@ -198,6 +200,16 @@ export class CanvasRenderer {
     ctx.setLineDash([6, 4]);
     ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
     ctx.setLineDash([]);
+    // Draw snap-target indicator at endpoint
+    const r = Math.max(4, 5 * this.zoom);
+    ctx.strokeStyle = '#4ade80';
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath(); ctx.arc(p2.x, p2.y, r, 0, Math.PI * 2); ctx.stroke();
+    // Crosshair
+    ctx.beginPath();
+    ctx.moveTo(p2.x - r, p2.y); ctx.lineTo(p2.x + r, p2.y);
+    ctx.moveTo(p2.x, p2.y - r); ctx.lineTo(p2.x, p2.y + r);
+    ctx.stroke();
   }
 
   /* ── Components ─────────────────────────────────────────────────────────── */
