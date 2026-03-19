@@ -170,17 +170,28 @@ export class CanvasRenderer {
     }
   }
 
+  /* ── Wire hit test ──────────────────────────────────────────────────────── */
+  wireHitTest(wx, wy) {
+    const tolerancePx = 6;
+    const worldTol    = tolerancePx / (GRID * this.zoom);
+    for (const w of Object.values(state.schematic.wires)) {
+      if (_segDistWorld(wx, wy, w.x1, w.y1, w.x2, w.y2) < worldTol) return w;
+    }
+    return null;
+  }
+
   /* ── Wires ──────────────────────────────────────────────────────────────── */
   _drawWires() {
     const { ctx } = this;
-    // Schematic wires
-    ctx.strokeStyle = C.wire;
-    ctx.lineWidth   = Math.max(1.5, 1.5 * this.zoom);
+    const lw = Math.max(1.5, 1.5 * this.zoom);
     ctx.lineCap = 'round';
     for (const w of Object.values(state.schematic.wires)) {
       const p1 = this.w2s(w.x1, w.y1), p2 = this.w2s(w.x2, w.y2);
+      ctx.strokeStyle = w.selected ? C.selected : C.wire;
+      ctx.lineWidth   = w.selected ? lw * 2 : lw;
       ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
     }
+    ctx.lineWidth = lw;
     // PCB traces
     for (const t of Object.values(state.pcb.traces)) {
       const p1 = this.w2s(t.x1, t.y1), p2 = this.w2s(t.x2, t.y2);
@@ -193,23 +204,42 @@ export class CanvasRenderer {
   /* ── Wire preview (while placing) ──────────────────────────────────────── */
   _drawWirePreview() {
     const { ctx, _wirePreview: wp } = this;
-    const p1 = this.w2s(wp.x1, wp.y1), p2 = this.w2s(wp.x2, wp.y2);
-    ctx.strokeStyle = C.wireHover;
-    ctx.lineWidth   = Math.max(1.5, 1.5 * this.zoom);
-    ctx.lineCap = 'round';
+    const lw = Math.max(1.5, 1.5 * this.zoom);
+    ctx.lineWidth = lw;
+    ctx.lineCap   = 'round';
     ctx.setLineDash([6, 4]);
-    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+
+    // L-shape: two segments
+    const hasBend = wp.mx != null;
+    if (hasBend) {
+      const p1 = this.w2s(wp.x1, wp.y1);
+      const pm = this.w2s(wp.mx, wp.my);
+      const p2 = this.w2s(wp.x2, wp.y2);
+      ctx.strokeStyle = C.wireHover;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(pm.x, pm.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+      // Snap indicator
+      const snapColor = wp.snapOk ? '#4ade80' : '#f47171';
+      const r = Math.max(4, 5 * this.zoom);
+      ctx.setLineDash([]);
+      ctx.strokeStyle = snapColor;
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath(); ctx.arc(p2.x, p2.y, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(p2.x - r, p2.y); ctx.lineTo(p2.x + r, p2.y);
+      ctx.moveTo(p2.x, p2.y - r); ctx.lineTo(p2.x, p2.y + r);
+      ctx.stroke();
+    } else {
+      // Fallback: straight line
+      const p1 = this.w2s(wp.x1, wp.y1), p2 = this.w2s(wp.x2, wp.y2);
+      ctx.strokeStyle = C.wireHover;
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
     ctx.setLineDash([]);
-    // Draw snap-target indicator at endpoint
-    const r = Math.max(4, 5 * this.zoom);
-    ctx.strokeStyle = '#4ade80';
-    ctx.lineWidth   = 1.5;
-    ctx.beginPath(); ctx.arc(p2.x, p2.y, r, 0, Math.PI * 2); ctx.stroke();
-    // Crosshair
-    ctx.beginPath();
-    ctx.moveTo(p2.x - r, p2.y); ctx.lineTo(p2.x + r, p2.y);
-    ctx.moveTo(p2.x, p2.y - r); ctx.lineTo(p2.x, p2.y + r);
-    ctx.stroke();
   }
 
   /* ── Components ─────────────────────────────────────────────────────────── */
@@ -544,18 +574,36 @@ export class CanvasRenderer {
   _drawProbes() {
     const { ctx } = this;
     for (const p of Object.values(state.schematic.probes)) {
-      const s = this.w2s(p.x, p.y);
-      const r = Math.max(6, 8 * this.zoom);
-      ctx.strokeStyle = C.probe;
-      ctx.fillStyle   = 'rgba(197,134,192,0.15)';
-      ctx.lineWidth   = Math.max(1, 1.5 * this.zoom);
+      const s    = this.w2s(p.x, p.y);
+      const r    = Math.max(6, 8 * this.zoom);
+      const isV  = p.probeType === 'voltage';
+      const col  = isV ? '#c58ac0' : '#f0a946';   // purple = voltage, amber = current
+      const fill = isV ? 'rgba(197,134,192,0.18)' : 'rgba(240,169,70,0.18)';
+      const lbl  = isV ? 'V' : 'A';
+      ctx.strokeStyle = col;
+      ctx.fillStyle   = fill;
+      ctx.lineWidth   = Math.max(1.5, 2 * this.zoom);
       ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle  = C.probe;
-      ctx.font       = `bold ${Math.max(7, 9 * this.zoom)}px monospace`;
-      ctx.textAlign  = 'center';
+      // Stem (line from circle downward)
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y + r);
+      ctx.lineTo(s.x, s.y + r + Math.max(5, 8 * this.zoom));
+      ctx.stroke();
+      // Label
+      ctx.fillStyle    = col;
+      ctx.font         = `bold ${Math.max(8, 10 * this.zoom)}px monospace`;
+      ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(p.probeType[0].toUpperCase(), s.x, s.y);
+      ctx.fillText(lbl, s.x, s.y);
       ctx.textBaseline = 'alphabetic';
+      // Net name below
+      if (p.netName) {
+        ctx.fillStyle  = col;
+        ctx.font       = `${Math.max(6, 7 * this.zoom)}px monospace`;
+        ctx.globalAlpha = 0.8;
+        ctx.fillText(p.netName, s.x, s.y + r + Math.max(16, 20 * this.zoom));
+        ctx.globalAlpha = 1;
+      }
     }
   }
 
@@ -620,4 +668,12 @@ export class CanvasRenderer {
     const w = this.s2w(cx - rect.left, cy - rect.top);
     return this.snap(w.x, w.y);
   }
+}
+
+function _segDistWorld(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const lenSq = dx*dx + dy*dy;
+  if (lenSq === 0) return Math.hypot(px-x1, py-y1);
+  const t = Math.max(0, Math.min(1, ((px-x1)*dx + (py-y1)*dy) / lenSq));
+  return Math.hypot(px-(x1+t*dx), py-(y1+t*dy));
 }

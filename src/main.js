@@ -229,9 +229,10 @@ canvas.addEventListener('mousemove', e => {
     _panPt = { x: e.clientX, y: e.clientY };
   }
 
-  // Wire preview
+  // Wire preview (L-shape)
   if (activeTool === 'wire' && wireTool.active) {
-    renderer._wirePreview = { x1: wireTool.startX, y1: wireTool.startY, x2: w.x, y2: w.y };
+    wireTool.preview(w.x, w.y);          // updates wireTool._previewWire
+    renderer._wirePreview = wireTool._previewWire;
     renderer.render();
   }
 
@@ -404,13 +405,17 @@ function handleClick(e) {
 
   if (activeTool === 'wire') {
     if (!wireTool.active) {
-      wireTool.begin(world.x, world.y);
-      setMsg('Click to place second endpoint — ESC to cancel');
+      const err = wireTool.begin(world.x, world.y);
+      if (err) setMsg(err.error, true);
+      else setMsg('Click on a pin to end the wire — ESC to cancel');
     } else {
-      renderer._wirePreview = null;
       const result = wireTool.commit(world.x, world.y);
-      if (result?.error) setMsg(`ERC: ${result.error}`, true);
-      else setMsg('Wire placed — click to continue or ESC to stop');
+      if (result?.error) {
+        setMsg(result.error, true);
+      } else if (Array.isArray(result) && result.length > 0) {
+        renderer._wirePreview = null;
+        setMsg('Wire placed — click next pin or ESC to stop');
+      }
     }
     renderer.render(); return;
   }
@@ -420,9 +425,15 @@ function handleClick(e) {
     renderer.render(); return;
   }
 
-  if (activeTool === 'probe') {
+  if (activeTool === 'probe' || activeTool === 'probe-v') {
     const probe = placeProbeTool(world.x, world.y, 'voltage', renderer);
-    setMsg(`Probe on net: ${probe.netName ?? '(unconnected)'}`);
+    setMsg(`Voltage probe on net: ${probe.netName ?? '(unconnected)'}`);
+    renderer.render(); return;
+  }
+
+  if (activeTool === 'probe-a') {
+    const probe = placeProbeTool(world.x, world.y, 'current', renderer);
+    setMsg(`Current probe on net: ${probe.netName ?? '(unconnected)'}`);
     renderer.render(); return;
   }
 
@@ -430,16 +441,30 @@ function handleClick(e) {
   const hit = hitTest(world.x, world.y);
   Object.values(state.schematic.components).forEach(c => c.selected = false);
   hideCtxMenu();
+  // Deselect all wires first
+  Object.values(state.schematic.wires).forEach(w => { w.selected = false; });
+
   if (hit) {
     hit.selected = true;
     onComponentSelect(hit.partId);
     showCompActions(hit);
   } else {
-    hidePanel();
-    hideCompActions();
+    // Check wire hit
+    const wireHit = renderer.wireHitTest(world.x, world.y);
+    if (wireHit) {
+      wireHit.selected = true;
+      _selectedWireId  = wireHit.id;
+      setMsg('Wire selected — Del to delete, ESC to deselect');
+    } else {
+      _selectedWireId = null;
+      hidePanel();
+      hideCompActions();
+    }
   }
   renderer.render();
 }
+
+let _selectedWireId = null;
 
 function hitTest(wx, wy) {
   // Give small symbols (R/C/LED/power) a generous hit radius of 4 grid units
@@ -704,7 +729,7 @@ window.addEventListener('keydown', e => {
   switch (e.key.toLowerCase()) {
     case 'w':  setTool('wire');  break;
     case 'v':  setTool('via');   break;
-    case 'p':  setTool('probe'); break;
+    case 'p':  setTool('probe-v'); break;
     case 'g':  renderer.showGrid = !renderer.showGrid; renderer.render(); break;
     case '+':  case '=': renderer.zoomAt(canvas.width/2, canvas.height/2, 1.25); updateZoomDisplay(); break;
     case '-':  renderer.zoomAt(canvas.width/2, canvas.height/2, 0.8); updateZoomDisplay(); break;
@@ -712,13 +737,24 @@ window.addEventListener('keydown', e => {
       renderer._wirePreview = null;
       if (wireTool.active) wireTool.end();
       setTool(null);
+      // Deselect wires
+      Object.values(state.schematic.wires).forEach(w => { w.selected = false; });
+      _selectedWireId = null;
+      renderer.render();
       break;
     case 'delete':
     case 'backspace':
+      // Delete selected components
       Object.values(state.schematic.components)
         .filter(c => c.selected)
         .forEach(c => state.removeComponent(c.id));
       hideCompActions();
+      // Delete selected wire
+      if (_selectedWireId) {
+        state.removeWire(_selectedWireId);
+        _selectedWireId = null;
+        setMsg('Wire deleted');
+      }
       renderer.render();
       break;
   }
@@ -734,9 +770,10 @@ window.addEventListener('keydown', e => {
 });
 
 // ── Toolbar buttons ───────────────────────────────────────────────────────────
-document.getElementById('btn-wire')?.addEventListener('click',  () => setTool('wire'));
-document.getElementById('btn-via')?.addEventListener('click',   () => setTool('via'));
-document.getElementById('btn-probe')?.addEventListener('click', () => setTool('probe'));
+document.getElementById('btn-wire')?.addEventListener('click',    () => setTool('wire'));
+document.getElementById('btn-via')?.addEventListener('click',     () => setTool('via'));
+document.getElementById('btn-probe-v')?.addEventListener('click', () => setTool('probe-v'));
+document.getElementById('btn-probe-a')?.addEventListener('click', () => setTool('probe-a'));
 
 document.getElementById('btn-zoom-in')?.addEventListener('click',
   () => { renderer.zoomAt(canvas.width/2, canvas.height/2, 1.25); updateZoomDisplay(); });
@@ -827,9 +864,10 @@ function setTool(tool) {
   if (tool === null && wireTool.active) wireTool.end();
 
   document.querySelectorAll('.tb-btn').forEach(b => b.classList.remove('active'));
-  if (tool === 'wire')  document.getElementById('btn-wire')?.classList.add('active');
-  if (tool === 'via')   document.getElementById('btn-via')?.classList.add('active');
-  if (tool === 'probe') document.getElementById('btn-probe')?.classList.add('active');
+  if (tool === 'wire')    document.getElementById('btn-wire')?.classList.add('active');
+  if (tool === 'via')     document.getElementById('btn-via')?.classList.add('active');
+  if (tool === 'probe-v') document.getElementById('btn-probe-v')?.classList.add('active');
+  if (tool === 'probe-a') document.getElementById('btn-probe-a')?.classList.add('active');
 
   canvas.style.cursor = tool ? 'crosshair' : 'default';
 

@@ -34,104 +34,117 @@ export function ercDescription(typeA, typeB) {
 }
 
 // ── Wire Tool ─────────────────────────────────────────────────────────────────
+const WIRE_SNAP_PX = 28;   // screen-pixel snap radius for pin/wire endpoint detection
+const GRID_PX      = 20;   // must match canvasRenderer GRID constant
+
 export class WireTool {
   constructor(renderer) {
-    this.renderer    = renderer;
-    this.active      = false;
-    this.startX      = null;
-    this.startY      = null;
-    this.currentNetId = null;   // net being drawn
+    this.renderer     = renderer;
+    this.active       = false;
+    this.startX       = null;
+    this.startY       = null;
+    this.currentNetId = null;
     this._previewWire = null;
   }
 
-  /** Snap to nearest pin within pinSnapRadius world units, else grid-snap */
-  _pinSnap(wx, wy, pinSnapRadius = 6) {
-    let best = null, bestDist = pinSnapRadius;
+  /** Snap to nearest pin OR wire-endpoint within WIRE_SNAP_PX screen pixels.
+   *  Returns {x, y, found: bool}. found=false means free-space click. */
+  _snap(wx, wy) {
+    const worldR = WIRE_SNAP_PX / (GRID_PX * this.renderer.zoom);
+    let best = null, bestDist = worldR;
+    // 1. Pins
     for (const comp of Object.values(state.schematic.components)) {
       for (const pin of comp.pins) {
         const px = comp.x + pin.offsetX;
         const py = comp.y + pin.offsetY;
         const d  = Math.hypot(px - wx, py - wy);
-        if (d < bestDist) { bestDist = d; best = { x: px, y: py, pin, comp }; }
+        if (d < bestDist) { bestDist = d; best = { x: px, y: py }; }
       }
     }
-    if (best) return { x: best.x, y: best.y };
-    return this.renderer.snapToGrid(wx, wy);
+    // 2. Existing wire endpoints
+    for (const wire of Object.values(state.schematic.wires)) {
+      for (const pt of [{x: wire.x1, y: wire.y1}, {x: wire.x2, y: wire.y2}]) {
+        const d = Math.hypot(pt.x - wx, pt.y - wy);
+        if (d < bestDist) { bestDist = d; best = pt; }
+      }
+    }
+    if (best) return { x: best.x, y: best.y, found: true };
+    return { ...this.renderer.snapToGrid(wx, wy), found: false };
+  }
+
+  /** Preview snap without the "must be found" constraint — for visual feedback */
+  _snapPreview(wx, wy) { return this._snap(wx, wy); }
+
+  /** Returns {x1,y1, mx,my, x2,y2, snapOk} for the L-shape preview */
+  preview(worldX, worldY) {
+    if (!this.active) return null;
+    const s = this._snapPreview(worldX, worldY);
+    const mx = s.x, my = this.startY;   // H-first bend
+    this._previewWire = { x1: this.startX, y1: this.startY, mx, my, x2: s.x, y2: s.y, snapOk: s.found };
+    return this._previewWire;
   }
 
   /** Called when the user clicks to start drawing */
   begin(worldX, worldY) {
-    const snapped = this._pinSnap(worldX, worldY);
-    this.startX   = snapped.x;
-    this.startY   = snapped.y;
-    this.active   = true;
-
-    // Check if start point is on an existing pin or wire and inherit net
-    this.currentNetId = this._netAtPoint(snapped.x, snapped.y);
+    const s = this._snap(worldX, worldY);
+    if (!s.found) return { error: 'Click on a pin or wire endpoint to start' };
+    this.startX  = s.x;
+    this.startY  = s.y;
+    this.active  = true;
+    this.currentNetId = this._netAtPoint(s.x, s.y);
     if (!this.currentNetId) {
       const net = createNet(null, NetClass.SIGNAL);
       state.schematic.nets[net.id] = net;
       this.currentNetId = net.id;
     }
+    return null;
   }
 
-  /** Called on mouse-move – updates preview */
-  preview(worldX, worldY) {
-    if (!this.active) return null;
-    const snapped = this._pinSnap(worldX, worldY);
-    this._previewWire = {
-      x1: this.startX, y1: this.startY,
-      x2: snapped.x,   y2: snapped.y,
-    };
-    return this._previewWire;
-  }
-
-  /** Called on click – commits segment */
+  /** Called on click – commits orthogonal L-shaped pair of segments */
   commit(worldX, worldY) {
     if (!this.active) return null;
-    const snapped = this._pinSnap(worldX, worldY);
+    const s = this._snap(worldX, worldY);
+    if (!s.found) return { error: 'Click on a pin or wire endpoint to end' };
 
-    // Don't draw zero-length wires
-    if (snapped.x === this.startX && snapped.y === this.startY) return null;
+    if (s.x === this.startX && s.y === this.startY) return null;
 
-    // Check ERC at endpoint
-    const endNetId = this._netAtPoint(snapped.x, snapped.y);
+    // ERC check at endpoint
+    const endNetId = this._netAtPoint(s.x, s.y);
     if (endNetId && endNetId !== this.currentNetId) {
-      // Merge nets: check for conflicts first
       const violation = this._checkMergeConflict(this.currentNetId, endNetId);
-      if (violation) {
-        console.warn('[ERC]', violation);
-        return { error: violation };
-      }
+      if (violation) { console.warn('[ERC]', violation); return { error: violation }; }
       this._mergeNets(this.currentNetId, endNetId);
     }
 
-    const wire = createWire(
-      this.startX, this.startY,
-      snapped.x,   snapped.y,
-      this.currentNetId
-    );
+    // L-shape: two orthogonal segments (H-first: startX→endX, then endX→endY)
+    const mx = s.x, my = this.startY;   // bend point
+    const segments = [];
+    if (mx !== this.startX || my !== this.startY) {
+      segments.push(createWire(this.startX, this.startY, mx, my, this.currentNetId));
+    }
+    if (s.x !== mx || s.y !== my) {
+      segments.push(createWire(mx, my, s.x, s.y, this.currentNetId));
+    }
+    if (segments.length === 0) return null;
 
-    // If two wires cross without a junction they must NOT be connected
-    // Only add junction if both wires share a point exactly
-    const isJunction = this._isJunctionPoint(snapped.x, snapped.y);
-    if (isJunction) {
-      state.schematic.junctions.push({ x: snapped.x, y: snapped.y });
+    for (const wire of segments) {
+      if (this._isJunctionPoint(wire.x2, wire.y2)) {
+        state.schematic.junctions.push({ x: wire.x2, y: wire.y2 });
+      }
+      state.addWire(wire);
+      const net = state.schematic.nets[wire.netId];
+      if (net) { net.wireIds = net.wireIds ?? []; net.wireIds.push(wire.id); }
     }
 
-    state.addWire(wire);
-    const net = state.schematic.nets[wire.netId];
-    if (net) net.wireIds.push(wire.id);
+    // Assign netId to pins at endpoints
+    this._connectPinsAtPoint(this.startX, this.startY, this.currentNetId);
+    this._connectPinsAtPoint(s.x, s.y, this.currentNetId);
 
-    // Assign netId to any pins at start or end of this wire
-    this._connectPinsAtPoint(this.startX, this.startY, wire.netId);
-    this._connectPinsAtPoint(snapped.x,   snapped.y,   wire.netId);
+    // Wire ends → start again from endpoint (chain mode)
+    this.startX = s.x;
+    this.startY = s.y;
 
-    // Chain: end of this wire becomes start of next
-    this.startX = snapped.x;
-    this.startY = snapped.y;
-
-    return wire;
+    return segments;
   }
 
   end() { this.active = false; this._previewWire = null; }

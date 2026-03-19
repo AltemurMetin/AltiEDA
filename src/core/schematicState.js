@@ -91,6 +91,15 @@ class StateManager {
     return wire;
   }
 
+  removeWire(id) {
+    const wire = this.schematic.wires[id];
+    if (!wire) return;
+    const net = this.schematic.nets[wire.netId];
+    if (net) net.wireIds = (net.wireIds ?? []).filter(w => w !== id);
+    delete this.schematic.wires[id];
+    this._emit('wire:remove', wire);
+  }
+
   // ── Via management ────────────────────────────────────────────────────────
   addVia(via) {
     this.pcb.vias[via.id] = via;
