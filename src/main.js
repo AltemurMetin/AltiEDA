@@ -264,7 +264,7 @@ canvas.addEventListener('mouseup', e => {
   }
 });
 
-canvas.addEventListener('contextmenu', e => e.preventDefault());
+// contextmenu handled below (right-click → component context menu)
 
 // ── Touch support ─────────────────────────────────────────────────────────────
 let _touch = {
@@ -429,11 +429,14 @@ function handleClick(e) {
   // Selection
   const hit = hitTest(world.x, world.y);
   Object.values(state.schematic.components).forEach(c => c.selected = false);
+  hideCtxMenu();
   if (hit) {
     hit.selected = true;
     onComponentSelect(hit.partId);
+    showCompActions(hit);
   } else {
     hidePanel();
+    hideCompActions();
   }
   renderer.render();
 }
@@ -449,6 +452,201 @@ function hitTest(wx, wy) {
         wy > comp.y - hh && wy < comp.y + hh) return comp;
   }
   return null;
+}
+
+// ── Floating action bar ────────────────────────────────────────────────────────
+const compActions = document.getElementById('comp-actions');
+let _actionTarget = null;   // currently selected component
+
+function showCompActions(comp) {
+  _actionTarget = comp;
+  document.getElementById('ca-label').textContent = comp.partName;
+  positionCompActions(comp);
+  compActions.classList.remove('hidden');
+}
+
+function positionCompActions(comp) {
+  if (!comp) return;
+  const s    = renderer.w2s(comp.x, comp.y);
+  const wrap = document.getElementById('canvas-wrap');
+  const rect = wrap.getBoundingClientRect();
+  // Position bar centred above component, 50px above its screen y
+  compActions.style.left = `${s.x}px`;
+  compActions.style.top  = `${Math.max(8, s.y - 50)}px`;
+}
+
+function hideCompActions() {
+  _actionTarget = null;
+  compActions.classList.add('hidden');
+}
+
+function deleteSelected() {
+  if (!_actionTarget) return;
+  state.removeComponent(_actionTarget.id);
+  hideCompActions();
+  hidePanel();
+  renderer.render();
+  setMsg('Component deleted');
+}
+
+function rotateSelected() {
+  if (!_actionTarget) return;
+  _actionTarget.rotation = (_actionTarget.rotation + 90) % 360;
+  positionCompActions(_actionTarget);
+  renderer.render();
+  setMsg(`Rotated to ${_actionTarget.rotation}°`);
+}
+
+function mirrorSelected() {
+  if (!_actionTarget) return;
+  _actionTarget.mirrored = !_actionTarget.mirrored;
+  renderer.render();
+}
+
+function replaceSelected() {
+  if (!_actionTarget) return;
+  showReplaceModal(_actionTarget);
+}
+
+// Reposition action bar when canvas re-renders (zoom/pan)
+const _origRender = renderer.render.bind(renderer);
+renderer.render = function() {
+  _origRender();
+  if (_actionTarget) {
+    requestAnimationFrame(() => positionCompActions(_actionTarget));
+  }
+};
+
+// Wire up action buttons
+document.getElementById('ca-delete')?.addEventListener('click',  deleteSelected);
+document.getElementById('ca-rotate')?.addEventListener('click',  rotateSelected);
+document.getElementById('ca-mirror')?.addEventListener('click',  mirrorSelected);
+document.getElementById('ca-replace')?.addEventListener('click', replaceSelected);
+
+// ── Context menu ───────────────────────────────────────────────────────────────
+const ctxMenu = document.getElementById('ctx-menu');
+let _ctxTarget = null;
+
+function showCtxMenu(comp, screenX, screenY) {
+  _ctxTarget = comp;
+  ctxMenu.style.left = `${screenX}px`;
+  ctxMenu.style.top  = `${screenY}px`;
+  ctxMenu.classList.remove('hidden');
+}
+
+function hideCtxMenu() {
+  ctxMenu.classList.add('hidden');
+  _ctxTarget = null;
+}
+
+document.getElementById('ctx-delete')?.addEventListener('click',  () => { _actionTarget = _ctxTarget; deleteSelected(); hideCtxMenu(); });
+document.getElementById('ctx-rotate')?.addEventListener('click',  () => { _actionTarget = _ctxTarget; rotateSelected(); hideCtxMenu(); });
+document.getElementById('ctx-mirror')?.addEventListener('click',  () => { _actionTarget = _ctxTarget; mirrorSelected(); hideCtxMenu(); });
+document.getElementById('ctx-replace')?.addEventListener('click', () => { _actionTarget = _ctxTarget; replaceSelected(); hideCtxMenu(); });
+
+// Close context menu on click outside
+document.addEventListener('click', e => {
+  if (!ctxMenu.contains(e.target)) hideCtxMenu();
+});
+
+// Right-click on canvas → context menu
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const rect  = canvas.getBoundingClientRect();
+  const world = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const hit   = hitTest(world.x, world.y);
+  if (hit) {
+    Object.values(state.schematic.components).forEach(c => c.selected = false);
+    hit.selected = true;
+    showCompActions(hit);
+    showCtxMenu(hit, e.clientX, e.clientY);
+    renderer.render();
+  }
+});
+
+// Long-press on canvas → context menu (touch)
+let _longPressTimer = null;
+canvas.addEventListener('touchstart', e2 => {
+  if (e2.touches.length !== 1) return;
+  const t = e2.touches[0];
+  _longPressTimer = setTimeout(() => {
+    const rect  = canvas.getBoundingClientRect();
+    const world = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
+    const hit   = hitTest(world.x, world.y);
+    if (hit) {
+      Object.values(state.schematic.components).forEach(c => c.selected = false);
+      hit.selected = true;
+      showCompActions(hit);
+      showCtxMenu(hit, t.clientX, t.clientY);
+      renderer.render();
+    }
+  }, 500);
+}, { passive: true });
+
+canvas.addEventListener('touchmove',  () => { clearTimeout(_longPressTimer); }, { passive: true });
+canvas.addEventListener('touchend',   () => { clearTimeout(_longPressTimer); }, { passive: true });
+
+// ── Replace modal ─────────────────────────────────────────────────────────────
+function showReplaceModal(comp) {
+  // Reuse component list as a modal picker
+  let modal = document.getElementById('replace-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'replace-modal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+      <div class="modal-box" style="min-width:320px;max-height:70vh;overflow:hidden;display:flex;flex-direction:column;">
+        <div class="modal-hdr">Replace Component
+          <button id="replace-close" class="icon-btn">✕</button>
+        </div>
+        <div style="padding:8px;">
+          <div class="lib-search-wrap">
+            <svg class="lib-search-icon" viewBox="0 0 16 16"><circle cx="6.5" cy="6.5" r="4" stroke="currentColor" fill="none" stroke-width="1.3"/><path d="M10 10l3 3" stroke="currentColor" stroke-width="1.5"/></svg>
+            <input id="replace-search" type="text" placeholder="Search…" autocomplete="off" style="flex:1;background:none;border:none;outline:none;color:var(--text);font-size:12px;padding:5px 4px;"/>
+          </div>
+        </div>
+        <div id="replace-list" style="flex:1;overflow-y:auto;padding:4px;"></div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('replace-close').addEventListener('click', () => modal.classList.add('hidden'));
+    modal.addEventListener('click', e => { if (e.target === modal) modal.classList.add('hidden'); });
+    document.getElementById('replace-search').addEventListener('input', () => buildReplaceList(comp));
+  }
+  modal._targetComp = comp;
+  modal.classList.remove('hidden');
+  buildReplaceList(comp);
+}
+
+function buildReplaceList(comp) {
+  const modal  = document.getElementById('replace-modal');
+  const list   = document.getElementById('replace-list');
+  const query  = document.getElementById('replace-search')?.value.toLowerCase() ?? '';
+  if (!list) return;
+  list.innerHTML = '';
+  const filtered = COMPONENT_LIBRARY.filter(c =>
+    c.partName.toLowerCase().includes(query) || c.category.toLowerCase().includes(query)
+  );
+  for (const lib of filtered) {
+    const div = document.createElement('div');
+    div.className = 'comp-item';
+    div.style.cursor = 'pointer';
+    div.innerHTML = `<div class="comp-info"><div class="comp-name">${lib.partName}</div><div class="comp-cat">${lib.category} · ${lib.footprintId ?? '—'}</div></div>`;
+    div.addEventListener('click', () => {
+      // Swap the component in place, keep position/rotation
+      const target = modal._targetComp;
+      const newComp = createComponent(lib, target.x, target.y);
+      newComp.rotation = target.rotation;
+      newComp.selected = true;
+      state.removeComponent(target.id);
+      state.addComponent(newComp);
+      showCompActions(newComp);
+      onComponentSelect(newComp.partId);
+      renderer.render();
+      modal.classList.add('hidden');
+      setMsg(`Replaced with ${lib.partName}`);
+    });
+    list.appendChild(div);
+  }
 }
 
 // ── Probe tooltip ─────────────────────────────────────────────────────────────
@@ -491,6 +689,7 @@ window.addEventListener('keydown', e => {
       Object.values(state.schematic.components)
         .filter(c => c.selected)
         .forEach(c => state.removeComponent(c.id));
+      hideCompActions();
       renderer.render();
       break;
   }

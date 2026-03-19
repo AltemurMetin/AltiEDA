@@ -149,6 +149,34 @@
         <!-- Probe tooltip -->
         <div id="probe-tooltip" class="sch-tooltip hidden"></div>
 
+        <!-- Floating component action bar (shown when a component is selected) -->
+        <div id="comp-actions" class="hidden">
+          <span id="ca-label"></span>
+          <div class="ca-sep"></div>
+          <button id="ca-rotate"  class="ca-btn" title="Rotate 90°">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 5A6 6 0 1 0 11 11"/><polyline points="13,2 13,6 9,6"/></svg>
+          </button>
+          <button id="ca-mirror"  class="ca-btn" title="Mirror Horizontal">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="8" y1="2" x2="8" y2="14"/><polyline points="5,5 2,8 5,11"/><polyline points="11,5 14,8 11,11"/></svg>
+          </button>
+          <button id="ca-replace" class="ca-btn" title="Replace Component">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="6" height="8" rx="1"/><rect x="9" y="4" width="6" height="8" rx="1"/><path d="M7 8h2"/><polyline points="10,6 12,8 10,10"/></svg>
+          </button>
+          <div class="ca-sep"></div>
+          <button id="ca-delete"  class="ca-btn ca-danger" title="Delete (Del)">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3,4 13,4"/><path d="M5 4V2h6v2M6 7v5M10 7v5"/><path d="M4 4l1 10h6l1-10"/></svg>
+          </button>
+        </div>
+
+        <!-- Context menu (right-click / long-press) -->
+        <div id="ctx-menu" class="hidden">
+          <div class="ctx-item" id="ctx-rotate">↻  Rotate 90°</div>
+          <div class="ctx-item" id="ctx-mirror">⇄  Mirror</div>
+          <div class="ctx-item" id="ctx-replace">⇌  Replace…</div>
+          <div class="ctx-sep"></div>
+          <div class="ctx-item ctx-danger" id="ctx-delete">🗑  Delete</div>
+        </div>
+
         <!-- DRC violations panel -->
         <div id="drc-panel" class="float-panel hidden">
           <div class="float-panel-header">

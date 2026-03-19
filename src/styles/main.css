@@ -565,6 +565,81 @@ body {
 }
 .layer-thickness:focus { border-color: var(--accent2); }
 
+/* ── Floating component action bar ── */
+#comp-actions {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg3);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 4px 6px;
+  z-index: 30;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.5);
+  pointer-events: all;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+#comp-actions.hidden { display: none; }
+
+#ca-label {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  padding: 0 4px;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ca-sep { width: 1px; height: 18px; background: var(--border); margin: 0 2px; }
+
+.ca-btn {
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text2);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.ca-btn svg { width: 14px; height: 14px; }
+.ca-btn:hover { background: var(--bg5); color: var(--text); border-color: var(--border); }
+.ca-btn.ca-danger:hover { background: rgba(244,71,71,0.15); color: var(--red); border-color: var(--red); }
+
+@media (pointer: coarse) {
+  .ca-btn { width: 38px; height: 38px; }
+  .ca-btn svg { width: 18px; height: 18px; }
+  #ca-label { font-size: 12px; }
+}
+
+/* ── Context menu ── */
+#ctx-menu {
+  position: fixed;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  padding: 4px 0;
+  min-width: 160px;
+  z-index: 500;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+#ctx-menu.hidden { display: none; }
+
+.ctx-item {
+  padding: 7px 14px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.ctx-item:hover { background: var(--accent2); color: #fff; }
+.ctx-item.ctx-danger { color: var(--red); }
+.ctx-item.ctx-danger:hover { background: var(--red); color: #fff; }
+.ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
 /* ── Touch-friendly sizes ── */
 @media (pointer: coarse) {
   .tb-mode, .tb-btn { height: 36px; padding: 4px 12px; }
