@@ -145,31 +145,91 @@ canvas.addEventListener('drop', e => {
   setMsg(`Placed ${comp.partName} at (${pt.x.toFixed(0)}, ${pt.y.toFixed(0)})`);
 });
 
-// ── Mouse: pan / click ────────────────────────────────────────────────────────
+// ── Shared helpers ────────────────────────────────────────────────────────────
+const mm = (v) => (v * 2.54).toFixed(2);
+
+function updateCoords(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const w    = renderer.screenToWorld(clientX - rect.left, clientY - rect.top);
+  document.getElementById('sb-coords').textContent = `X: ${mm(w.x)} mm  Y: ${mm(w.y)} mm`;
+  return w;
+}
+
+// ── Component drag state ──────────────────────────────────────────────────────
+// _drag.comp  : the component being dragged (or null)
+// _drag.moved : true once pointer moved > threshold
+let _drag = { comp: null, moved: false, startClient: null };
+
+function startCompDrag(comp, clientX, clientY) {
+  _drag.comp        = comp;
+  _drag.moved       = false;
+  _drag.startClient = { x: clientX, y: clientY };
+  comp.selected     = true;
+  canvas.style.cursor = 'grabbing';
+}
+
+function moveCompDrag(clientX, clientY) {
+  if (!_drag.comp) return false;
+  const rect = canvas.getBoundingClientRect();
+  const w    = renderer.screenToWorld(clientX - rect.left, clientY - rect.top);
+  const s    = renderer.snap(w.x, w.y);
+  _drag.comp.x = s.x;
+  _drag.comp.y = s.y;
+  _drag.moved  = true;
+  renderer.render();
+  document.getElementById('sb-coords').textContent = `X: ${mm(s.x)} mm  Y: ${mm(s.y)} mm`;
+  return true;
+}
+
+function endCompDrag() {
+  if (!_drag.comp) return;
+  canvas.style.cursor = activeTool ? 'crosshair' : 'default';
+  _drag.comp = null;
+}
+
+// ── Mouse: pan / drag component / click ──────────────────────────────────────
 let _pan = false, _panPt = null;
 
 canvas.addEventListener('mousedown', e => {
   if (e.button === 1 || e.button === 2) {
     _pan = true; _panPt = { x: e.clientX, y: e.clientY };
     e.preventDefault();
-  } else if (e.button === 0) {
-    handleClick(e);
+    return;
   }
+  if (e.button !== 0) return;
+
+  // If a placement tool is active, handle as click
+  if (activeTool) { handleClick(e); return; }
+
+  // Hit-test for component drag
+  const rect  = canvas.getBoundingClientRect();
+  const world = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const hit   = hitTest(world.x, world.y);
+  if (hit) {
+    // Deselect others
+    Object.values(state.schematic.components).forEach(c => c.selected = false);
+    startCompDrag(hit, e.clientX, e.clientY);
+    renderer.render();
+  }
+  // If no hit, left-click on empty canvas = deselect all on mouseup (handled below)
 });
 
 canvas.addEventListener('mousemove', e => {
-  const rect = canvas.getBoundingClientRect();
-  const w    = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const w = updateCoords(e.clientX, e.clientY);
 
-  const mm = (v) => (v * 2.54).toFixed(2);
-  document.getElementById('sb-coords').textContent =
-    `X: ${mm(w.x)} mm  Y: ${mm(w.y)} mm`;
+  // Component drag
+  if (_drag.comp) {
+    moveCompDrag(e.clientX, e.clientY);
+    return;
+  }
 
+  // Middle/right mouse pan
   if (_pan && _panPt) {
     renderer.pan(e.clientX - _panPt.x, e.clientY - _panPt.y);
     _panPt = { x: e.clientX, y: e.clientY };
   }
 
+  // Wire preview
   if (activeTool === 'wire' && wireTool.active) {
     renderer._wirePreview = { x1: wireTool.startX, y1: wireTool.startY, x2: w.x, y2: w.y };
     renderer.render();
@@ -178,15 +238,41 @@ canvas.addEventListener('mousemove', e => {
   updateProbeTooltip(e);
 });
 
-canvas.addEventListener('mouseup', () => { _pan = false; _panPt = null; });
+canvas.addEventListener('mouseup', e => {
+  if (_drag.comp) {
+    if (!_drag.moved) {
+      // Was a click (no movement) → open properties
+      onComponentSelect(_drag.comp.partId);
+    } else {
+      setMsg(`Moved ${_drag.comp.partName} to (${_drag.comp.x.toFixed(0)}, ${_drag.comp.y.toFixed(0)})`);
+    }
+    endCompDrag();
+    renderer.render();
+    return;
+  }
+  if (_pan) { _pan = false; _panPt = null; return; }
+
+  // Click on empty canvas with no tool = deselect all
+  if (e.button === 0 && !activeTool) {
+    const rect  = canvas.getBoundingClientRect();
+    const world = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    if (!hitTest(world.x, world.y)) {
+      Object.values(state.schematic.components).forEach(c => c.selected = false);
+      hidePanel();
+      renderer.render();
+    }
+  }
+});
+
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 // ── Touch support ─────────────────────────────────────────────────────────────
 let _touch = {
   lastPan: null,
-  lastDist: null,     // for pinch zoom
-  tapStart: null,     // {x,y,t} for tap detection
+  lastDist: null,
+  tapStart: null,
   moved: false,
+  compDrag: null,   // component being dragged by touch
 };
 
 canvas.addEventListener('touchstart', e => {
@@ -194,12 +280,23 @@ canvas.addEventListener('touchstart', e => {
   if (e.touches.length === 1) {
     const t = e.touches[0];
     _touch.lastPan  = { x: t.clientX, y: t.clientY };
-    _touch.tapStart = { x: t.clientX, y: t.clientY, t: Date.now() };
+    _touch.tapStart = { x: t.clientX, y: t.clientY, time: Date.now() };
     _touch.moved    = false;
     _touch.lastDist = null;
+    _touch.compDrag = null;
 
-    // Show wire preview origin on touch start if wire tool active
-    if (activeTool === 'wire' && wireTool.active) {
+    if (!activeTool) {
+      // Hit-test: maybe start component drag
+      const rect  = canvas.getBoundingClientRect();
+      const world = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
+      const hit   = hitTest(world.x, world.y);
+      if (hit) {
+        Object.values(state.schematic.components).forEach(c => c.selected = false);
+        hit.selected    = true;
+        _touch.compDrag = hit;
+        renderer.render();
+      }
+    } else if (activeTool === 'wire' && wireTool.active) {
       const rect = canvas.getBoundingClientRect();
       const w    = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
       renderer._wirePreview = { x1: wireTool.startX, y1: wireTool.startY, x2: w.x, y2: w.y };
@@ -210,38 +307,36 @@ canvas.addEventListener('touchstart', e => {
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     _touch.lastDist = Math.hypot(dx, dy);
     _touch.lastPan  = null;
+    _touch.compDrag = null;
   }
 }, { passive: false });
 
 canvas.addEventListener('touchmove', e => {
   e.preventDefault();
   if (e.touches.length === 1) {
-    const t   = e.touches[0];
-    const dx  = t.clientX - (_touch.lastPan?.x ?? t.clientX);
-    const dy  = t.clientY - (_touch.lastPan?.y ?? t.clientY);
+    const t    = e.touches[0];
     const dist = Math.hypot(
       t.clientX - (_touch.tapStart?.x ?? t.clientX),
       t.clientY - (_touch.tapStart?.y ?? t.clientY)
     );
+    if (dist > 6) _touch.moved = true;
 
-    // Mark as moved if finger travelled > 8px
-    if (dist > 8) _touch.moved = true;
-
-    // Wire preview while dragging with tool active
-    if (activeTool === 'wire' && wireTool.active) {
+    if (_touch.compDrag && _touch.moved) {
+      // Drag component
+      moveCompDrag(t.clientX, t.clientY);
+    } else if (activeTool === 'wire' && wireTool.active) {
+      // Wire preview
       const rect = canvas.getBoundingClientRect();
       const w    = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
       renderer._wirePreview = { x1: wireTool.startX, y1: wireTool.startY, x2: w.x, y2: w.y };
-      const mm = (v) => (v * 2.54).toFixed(2);
-      document.getElementById('sb-coords').textContent = `X: ${mm(w.x)} mm  Y: ${mm(w.y)} mm`;
+      updateCoords(t.clientX, t.clientY);
       renderer.render();
-    } else if (_touch.moved) {
-      // Pan
+    } else if (_touch.moved && !_touch.compDrag) {
+      // Pan canvas
+      const dx = t.clientX - (_touch.lastPan?.x ?? t.clientX);
+      const dy = t.clientY - (_touch.lastPan?.y ?? t.clientY);
       renderer.pan(dx, dy);
-      const rect = canvas.getBoundingClientRect();
-      const w    = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
-      const mm = (v) => (v * 2.54).toFixed(2);
-      document.getElementById('sb-coords').textContent = `X: ${mm(w.x)} mm  Y: ${mm(w.y)} mm`;
+      updateCoords(t.clientX, t.clientY);
     }
 
     _touch.lastPan = { x: t.clientX, y: t.clientY };
@@ -265,14 +360,24 @@ canvas.addEventListener('touchmove', e => {
 
 canvas.addEventListener('touchend', e => {
   e.preventDefault();
-  if (e.changedTouches.length === 1 && !_touch.moved) {
-    const t    = e.changedTouches[0];
-    const dt   = Date.now() - (_touch.tapStart?.t ?? 0);
-    // Tap: finger didn't move and lifted within 300ms
-    if (dt < 300) {
-      handleClick({ clientX: t.clientX, clientY: t.clientY });
+  const t  = e.changedTouches[0];
+  const dt = Date.now() - (_touch.tapStart?.time ?? 0);
+
+  if (_touch.compDrag) {
+    if (!_touch.moved) {
+      // Tap on component = open properties
+      onComponentSelect(_touch.compDrag.partId);
+    } else {
+      setMsg(`Moved ${_touch.compDrag.partName}`);
     }
+    _touch.compDrag = null;
+    endCompDrag();
+    renderer.render();
+  } else if (!_touch.moved && dt < 350) {
+    // Tap on empty canvas = tool action
+    handleClick({ clientX: t.clientX, clientY: t.clientY });
   }
+
   if (e.touches.length === 0) {
     _touch.lastPan  = null;
     _touch.lastDist = null;
@@ -334,9 +439,14 @@ function handleClick(e) {
 }
 
 function hitTest(wx, wy) {
+  // Give small symbols (R/C/LED/power) a generous hit radius of 4 grid units
+  // ICs use a wider box (±5 wide, ±8 tall)
+  const smallParts = new Set(['R_GENERIC','C_GENERIC','LED_GENERIC','PWR_VCC','PWR_GND']);
   for (const comp of Object.values(state.schematic.components)) {
-    if (wx > comp.x - 5 && wx < comp.x + 5 &&
-        wy > comp.y - 6 && wy < comp.y + 6) return comp;
+    const hw = smallParts.has(comp.partId) ? 4 : 5;
+    const hh = smallParts.has(comp.partId) ? 4 : 8;
+    if (wx > comp.x - hw && wx < comp.x + hw &&
+        wy > comp.y - hh && wy < comp.y + hh) return comp;
   }
   return null;
 }
