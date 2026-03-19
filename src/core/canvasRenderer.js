@@ -1,120 +1,139 @@
 /**
- * AltiEDA – Canvas Renderer
- * Handles grid, pan/zoom, component drawing, wires, suggestions,
- * DRC overlays, and PCB ratsnest.
+ * AltiEDA – Canvas Renderer (Altium-style)
+ * Proper schematic symbols, dot grid, professional rendering.
  */
 import { state } from './schematicState.js';
 import { NetClass } from './dataModels.js';
 
-// ── Colour palette ────────────────────────────────────────────────────────────
-const COLORS = {
-  grid:        '#1e2040',
-  gridMajor:   '#2a2d50',
-  component:   '#334466',
-  compBorder:  '#4488cc',
-  compText:    '#e0e0e0',
-  pin:         '#88aaff',
-  wire:        '#aaddff',
-  wireHighlight:'#ffffff',
-  junction:    '#ffff00',
-  suggestion:  {
-    [NetClass.GND]:    '#4caf50',
-    [NetClass.POWER]:  '#f44336',
-    [NetClass.I2C]:    '#2196f3',
-    [NetClass.SPI]:    '#9c27b0',
-    [NetClass.UART]:   '#ff5722',
-    [NetClass.PWM]:    '#ffc107',
-    [NetClass.SIGNAL]: '#aaaaaa',
+// ── Colors ────────────────────────────────────────────────────────────────────
+const C = {
+  bg:           '#1a1a1a',
+  gridDot:      '#3a3a3a',
+  gridDotMajor: '#4a4a4a',
+  wire:         '#4ec9b0',
+  wireHover:    '#7eeedd',
+  junction:     '#4ec9b0',
+  pin:          '#569cd6',
+  pinUnconn:    '#888888',
+  compBody:     '#252526',
+  compBorder:   '#569cd6',
+  compText:     '#dcdcaa',
+  compValue:    '#ce9178',
+  selected:     '#ffcc02',
+  ratsnest:     '#ff8c00',
+  drcErr:       '#f44747',
+  probe:        '#c586c0',
+  via:          '#c8963e',
+  traceF:       '#c8963e',
+  traceB:       '#3a8dc8',
+  // schematic symbols
+  symR:         '#4ec9b0',
+  symC:         '#4ec9b0',
+  symLED:       '#4ec9b0',
+  symVCC:       '#f44747',
+  symGND:       '#6a9955',
+  // net classes
+  nets: {
+    [NetClass.GND]:    '#6a9955',
+    [NetClass.POWER]:  '#f44747',
+    [NetClass.I2C]:    '#569cd6',
+    [NetClass.SPI]:    '#c586c0',
+    [NetClass.UART]:   '#ce9178',
+    [NetClass.PWM]:    '#dcdcaa',
+    [NetClass.SIGNAL]: '#888888',
   },
-  ratsnest:    '#ff8800',
-  drcViolation:'#ff2222',
-  probe:       '#00e5ff',
-  via:         '#c0a060',
-  selected:    '#ff9900',
 };
 
-const GRID_SIZE = 10;    // px at zoom=1 (represents ~2.54mm)
-const PIN_RADIUS = 4;
+const GRID = 20;       // px per grid unit at zoom=1 (≈ 2.54mm)
+const PIN_R = 3;
 
 export class CanvasRenderer {
-  constructor(canvasEl) {
-    this.canvas  = canvasEl;
-    this.ctx     = canvasEl.getContext('2d');
-    this.offsetX = 0;
-    this.offsetY = 0;
-    this.zoom    = 1;
+  constructor(el) {
+    this.canvas = el;
+    this.ctx    = el.getContext('2d');
+    this.ox = 0; this.oy = 0;
+    this.zoom = 1;
+    this.showGrid = true;
     this.drcViolations = [];
-    this.suggestions   = [];   // [{x,y,netClass,label}]
-    this._animFrame    = null;
-    this._drcFlash     = false;
-    this._flashTimer   = null;
+    this.suggestions   = [];
+    this._raf = null;
+    this._flash = false;
 
     this._resize();
     window.addEventListener('resize', () => this._resize());
-
-    // Start flash animation for DRC markers
     setInterval(() => {
-      this._drcFlash = !this._drcFlash;
+      this._flash = !this._flash;
       if (this.drcViolations.length) this.render();
     }, 500);
   }
 
+  /* ── Coordinate helpers ─────────────────────────────────────────────────── */
+  s2w(sx, sy) {
+    return { x: (sx - this.ox) / (GRID * this.zoom),
+             y: (sy - this.oy) / (GRID * this.zoom) };
+  }
+  w2s(wx, wy) {
+    return { x: wx * GRID * this.zoom + this.ox,
+             y: wy * GRID * this.zoom + this.oy };
+  }
+  snap(wx, wy) {
+    return { x: Math.round(wx), y: Math.round(wy) };
+  }
+  screenToWorld(sx, sy) { return this.s2w(sx, sy); }
+
+  /* ── Pan / Zoom ─────────────────────────────────────────────────────────── */
+  pan(dx, dy) { this.ox += dx; this.oy += dy; this.render(); }
+
+  zoomAt(sx, sy, f) {
+    const w = this.s2w(sx, sy);
+    this.zoom = Math.max(0.08, Math.min(20, this.zoom * f));
+    const s = this.w2s(w.x, w.y);
+    this.ox += sx - s.x; this.oy += sy - s.y;
+    this.render();
+  }
+
+  fitAll() {
+    const comps = Object.values(state.schematic.components);
+    if (!comps.length) { this.ox = this.canvas.width/2; this.oy = this.canvas.height/2; this.zoom = 1; this.render(); return; }
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for (const c of comps) {
+      minX=Math.min(minX,c.x-5); minY=Math.min(minY,c.y-5);
+      maxX=Math.max(maxX,c.x+5); maxY=Math.max(maxY,c.y+5);
+    }
+    const pw=this.canvas.width*0.85, ph=this.canvas.height*0.85;
+    const zx=pw/((maxX-minX)*GRID), zy=ph/((maxY-minY)*GRID);
+    this.zoom = Math.min(zx,zy,5);
+    const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+    const sc=this.w2s(cx,cy);
+    this.ox+=this.canvas.width/2-sc.x;
+    this.oy+=this.canvas.height/2-sc.y;
+    this.render();
+  }
+
   _resize() {
-    const rect = this.canvas.parentElement.getBoundingClientRect();
-    this.canvas.width  = rect.width;
-    this.canvas.height = rect.height;
+    const r = this.canvas.parentElement.getBoundingClientRect();
+    this.canvas.width  = r.width;
+    this.canvas.height = r.height;
+    // Center origin on first resize
+    if (this.ox === 0 && this.oy === 0) {
+      this.ox = r.width  / 2;
+      this.oy = r.height / 2;
+    }
     this.render();
   }
 
-  // ── Coordinate helpers ────────────────────────────────────────────────────
-  screenToWorld(sx, sy) {
-    return {
-      x: (sx - this.offsetX) / (GRID_SIZE * this.zoom),
-      y: (sy - this.offsetY) / (GRID_SIZE * this.zoom),
-    };
-  }
-
-  worldToScreen(wx, wy) {
-    return {
-      x: wx * GRID_SIZE * this.zoom + this.offsetX,
-      y: wy * GRID_SIZE * this.zoom + this.offsetY,
-    };
-  }
-
-  snapToGrid(worldX, worldY) {
-    return {
-      x: Math.round(worldX),
-      y: Math.round(worldY),
-    };
-  }
-
-  // ── Pan / Zoom ────────────────────────────────────────────────────────────
-  pan(dx, dy) {
-    this.offsetX += dx;
-    this.offsetY += dy;
-    this.render();
-  }
-
-  zoomAt(screenX, screenY, factor) {
-    const before = this.screenToWorld(screenX, screenY);
-    this.zoom = Math.max(0.1, Math.min(10, this.zoom * factor));
-    const after = this.worldToScreen(before.x, before.y);
-    this.offsetX += screenX - after.x;
-    this.offsetY += screenY - after.y;
-    this.render();
-  }
-
-  // ── Main render ───────────────────────────────────────────────────────────
+  /* ── Main render ────────────────────────────────────────────────────────── */
   render() {
-    if (this._animFrame) cancelAnimationFrame(this._animFrame);
-    this._animFrame = requestAnimationFrame(() => this._draw());
+    if (this._raf) cancelAnimationFrame(this._raf);
+    this._raf = requestAnimationFrame(() => this._draw());
   }
 
   _draw() {
     const { ctx, canvas } = this;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    this._drawGrid();
+    if (this.showGrid) this._drawGrid();
     this._drawWires();
     this._drawComponents();
     this._drawJunctions();
@@ -122,272 +141,471 @@ export class CanvasRenderer {
     this._drawProbes();
     this._drawSuggestions();
     this._drawRatsnest();
-    this._drawDRCOverlays();
+    this._drawDRC();
+    if (this._wirePreview) this._drawWirePreview();
   }
 
-  // ── Grid ──────────────────────────────────────────────────────────────────
+  /* ── Dot Grid ───────────────────────────────────────────────────────────── */
   _drawGrid() {
-    const { ctx, canvas, zoom, offsetX, offsetY } = this;
-    const step = GRID_SIZE * zoom;
-    const majorEvery = 10;
+    const { ctx, canvas, zoom, ox, oy } = this;
+    const step  = GRID * zoom;
+    const major = 10;
 
-    const startX = ((offsetX % (step * majorEvery)) + (step * majorEvery)) % (step * majorEvery);
-    const startY = ((offsetY % (step * majorEvery)) + (step * majorEvery)) % (step * majorEvery);
+    const x0 = ((ox % step) + step) % step - step;
+    const y0 = ((oy % step) + step) % step - step;
 
-    ctx.lineWidth = 0.5;
-    for (let x = startX - step * majorEvery; x < canvas.width; x += step) {
-      const isMajor = Math.abs(Math.round((x - startX) / step) % majorEvery) === 0;
-      ctx.strokeStyle = isMajor ? COLORS.gridMajor : COLORS.grid;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvas.height);
-      ctx.stroke();
-    }
-    for (let y = startY - step * majorEvery; y < canvas.height; y += step) {
-      const isMajor = Math.abs(Math.round((y - startY) / step) % majorEvery) === 0;
-      ctx.strokeStyle = isMajor ? COLORS.gridMajor : COLORS.grid;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
-      ctx.stroke();
+    for (let x = x0; x < canvas.width + step; x += step) {
+      for (let y = y0; y < canvas.height + step; y += step) {
+        const isMajorX = Math.abs(Math.round((x - ox) / step) % major) === 0;
+        const isMajorY = Math.abs(Math.round((y - oy) / step) % major) === 0;
+        const isMajor  = isMajorX && isMajorY;
+        ctx.fillStyle = isMajor ? C.gridDotMajor : C.gridDot;
+        const r = isMajor ? 1.5 : 0.8;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 
-  // ── Wires ─────────────────────────────────────────────────────────────────
+  /* ── Wires ──────────────────────────────────────────────────────────────── */
   _drawWires() {
     const { ctx } = this;
-    ctx.lineWidth   = 1.5;
-    ctx.strokeStyle = COLORS.wire;
-    for (const wire of Object.values(state.schematic.wires)) {
-      const p1 = this.worldToScreen(wire.x1, wire.y1);
-      const p2 = this.worldToScreen(wire.x2, wire.y2);
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.stroke();
+    // Schematic wires
+    ctx.strokeStyle = C.wire;
+    ctx.lineWidth   = Math.max(1.5, 1.5 * this.zoom);
+    ctx.lineCap = 'round';
+    for (const w of Object.values(state.schematic.wires)) {
+      const p1 = this.w2s(w.x1, w.y1), p2 = this.w2s(w.x2, w.y2);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
     }
     // PCB traces
-    for (const trace of Object.values(state.pcb.traces)) {
-      const p1 = this.worldToScreen(trace.x1, trace.y1);
-      const p2 = this.worldToScreen(trace.x2, trace.y2);
-      const w  = trace.width * GRID_SIZE * this.zoom;
-      ctx.lineWidth   = Math.max(1, w);
-      ctx.strokeStyle = trace.layer === 'F.Cu' ? '#c87533' : '#3388ff';
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.stroke();
+    for (const t of Object.values(state.pcb.traces)) {
+      const p1 = this.w2s(t.x1, t.y1), p2 = this.w2s(t.x2, t.y2);
+      ctx.strokeStyle = t.layer === 'F.Cu' ? C.traceF : C.traceB;
+      ctx.lineWidth   = Math.max(2, t.width * GRID * this.zoom);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
     }
-    ctx.lineWidth = 1;
   }
 
-  // ── Components ────────────────────────────────────────────────────────────
+  /* ── Wire preview (while placing) ──────────────────────────────────────── */
+  _drawWirePreview() {
+    const { ctx, _wirePreview: wp } = this;
+    const p1 = this.w2s(wp.x1, wp.y1), p2 = this.w2s(wp.x2, wp.y2);
+    ctx.strokeStyle = C.wireHover;
+    ctx.lineWidth   = Math.max(1.5, 1.5 * this.zoom);
+    ctx.lineCap = 'round';
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  /* ── Components ─────────────────────────────────────────────────────────── */
   _drawComponents() {
-    for (const comp of Object.values(state.schematic.components)) {
+    for (const comp of Object.values(state.schematic.components))
       this._drawComponent(comp);
-    }
   }
 
   _drawComponent(comp) {
-    const { ctx } = this;
-    const s = this.worldToScreen(comp.x, comp.y);
-    const W = 80 * this.zoom;
-    const H = 120 * this.zoom;
-    const hw = W / 2, hh = H / 2;
-
+    const { ctx, zoom } = this;
+    const s = this.w2s(comp.x, comp.y);
     ctx.save();
     ctx.translate(s.x, s.y);
-    ctx.rotate((comp.rotation * Math.PI) / 180);
+    ctx.rotate(comp.rotation * Math.PI / 180);
 
-    // Body
-    ctx.fillStyle   = comp.selected ? '#334477' : COLORS.component;
-    ctx.strokeStyle = comp.selected ? COLORS.selected : COLORS.compBorder;
-    ctx.lineWidth   = comp.selected ? 2 : 1;
-    ctx.beginPath();
-    ctx.roundRect(-hw, -hh, W, H, 4 * this.zoom);
-    ctx.fill();
-    ctx.stroke();
-
-    // Name
-    ctx.fillStyle  = COLORS.compText;
-    ctx.font       = `bold ${Math.max(8, 10 * this.zoom)}px monospace`;
-    ctx.textAlign  = 'center';
-    ctx.fillText(comp.partName.substring(0, 10), 0, -hh + 14 * this.zoom);
-
-    // Value / ID
-    ctx.fillStyle = '#88aacc';
-    ctx.font      = `${Math.max(7, 8 * this.zoom)}px monospace`;
-    ctx.fillText(comp.value || comp.id, 0, -hh + 26 * this.zoom);
-
-    // Pins
-    this._drawPins(comp, W, H);
+    switch (comp.partId) {
+      case 'R_GENERIC':  this._symResistor(comp);  break;
+      case 'C_GENERIC':  this._symCapacitor(comp);  break;
+      case 'LED_GENERIC':this._symLED(comp);        break;
+      case 'PWR_VCC':    this._symVCC(comp);        break;
+      case 'PWR_GND':    this._symGND(comp);        break;
+      default:           this._symIC(comp);         break;
+    }
 
     ctx.restore();
   }
 
-  _drawPins(comp, W, H) {
-    const { ctx, zoom } = this;
-    const pinSpacingY = (H - 30 * zoom) / Math.max(comp.pins.length, 1);
-    const leftPins  = comp.pins.filter((_, i) => i % 2 === 0);
-    const rightPins = comp.pins.filter((_, i) => i % 2 === 1);
-    const hw = W / 2, hh = H / 2;
+  /* ──────────────────────────────────────────────────────────────────────────
+     SCHEMATIC SYMBOLS
+  ────────────────────────────────────────────────────────────────────────── */
 
-    const drawPin = (pin, x, y, side) => {
-      const lineLen = 12 * zoom;
-      const endX    = side === 'left' ? x - lineLen : x + lineLen;
-      ctx.strokeStyle = pin.connected ? COLORS.suggestion[NetClass.SIGNAL] : COLORS.pin;
-      ctx.lineWidth   = 1;
+  /* Resistor – American zigzag style */
+  _symResistor(comp) {
+    const { ctx } = this;
+    const z = this.zoom;
+    const lw = Math.max(1.2, 1.5 * z);
+    const bw = 18 * z;   // body half-width
+    const bh = 6 * z;    // body half-height
+    const lead = 12 * z; // lead length
+
+    ctx.strokeStyle = comp.selected ? C.selected : C.symR;
+    ctx.lineWidth   = lw;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Left lead
+    ctx.beginPath(); ctx.moveTo(-(bw + lead), 0); ctx.lineTo(-bw, 0); ctx.stroke();
+    // Right lead
+    ctx.beginPath(); ctx.moveTo(bw, 0); ctx.lineTo(bw + lead, 0); ctx.stroke();
+
+    // Zigzag body
+    const peaks = 6;
+    const pw = (bw * 2) / peaks;
+    ctx.beginPath();
+    ctx.moveTo(-bw, 0);
+    for (let i = 0; i < peaks; i++) {
+      const x = -bw + pw * (i + 0.5);
+      const y = (i % 2 === 0) ? -bh : bh;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(bw, 0);
+    ctx.stroke();
+
+    // Pin dots
+    this._pinDot(-(bw + lead), 0, comp.selected);
+    this._pinDot(bw + lead, 0, comp.selected);
+
+    // Labels
+    this._symLabel(comp, 0, -(bh + 8 * z), 0, (bh + 6 * z), z);
+  }
+
+  /* Capacitor */
+  _symCapacitor(comp) {
+    const { ctx } = this;
+    const z = this.zoom;
+    const lw = Math.max(1.2, 1.5 * z);
+    const gap = 4 * z;    // gap between plates
+    const ph  = 14 * z;   // plate height half
+    const lead = 16 * z;
+
+    ctx.strokeStyle = comp.selected ? C.selected : C.symC;
+    ctx.lineWidth   = lw;
+    ctx.lineCap = 'round';
+
+    // Leads
+    ctx.beginPath(); ctx.moveTo(-(lead + gap), 0); ctx.lineTo(-gap, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gap, 0); ctx.lineTo(lead + gap, 0); ctx.stroke();
+
+    // Plates
+    ctx.lineWidth = Math.max(2, 2.5 * z);
+    ctx.beginPath(); ctx.moveTo(-gap, -ph); ctx.lineTo(-gap, ph); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo( gap, -ph); ctx.lineTo( gap, ph); ctx.stroke();
+
+    // Pin dots
+    this._pinDot(-(lead + gap), 0, comp.selected);
+    this._pinDot(lead + gap, 0, comp.selected);
+
+    this._symLabel(comp, 0, -(ph + 8 * z), 0, (ph + 6 * z), z);
+  }
+
+  /* LED – diode + light arrows */
+  _symLED(comp) {
+    const { ctx } = this;
+    const z = this.zoom;
+    const lw = Math.max(1.2, 1.5 * z);
+    const r  = 12 * z;
+    const lead = 12 * z;
+
+    ctx.strokeStyle = comp.selected ? C.selected : C.symLED;
+    ctx.fillStyle   = comp.selected ? C.selected : C.symLED;
+    ctx.lineWidth   = lw;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Leads
+    ctx.beginPath(); ctx.moveTo(-(r + lead), 0); ctx.lineTo(-r, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(r, 0);  ctx.lineTo(r + lead, 0); ctx.stroke();
+
+    // Triangle (anode left → cathode right)
+    ctx.beginPath();
+    ctx.moveTo(-r,  r); ctx.lineTo(-r, -r);
+    ctx.lineTo( r,  0); ctx.closePath();
+    ctx.globalAlpha = 0.2; ctx.fill();
+    ctx.globalAlpha = 1;   ctx.stroke();
+
+    // Cathode bar
+    ctx.lineWidth = Math.max(2, 2 * z);
+    ctx.beginPath(); ctx.moveTo(r, -r); ctx.lineTo(r, r); ctx.stroke();
+    ctx.lineWidth = lw;
+
+    // Light arrows
+    const ax = r * 0.3, ay = -r * 1.1;
+    ctx.strokeStyle = '#dcdcaa';
+    for (let i = 0; i < 2; i++) {
+      const ox2 = ax + i * 8 * z;
+      const oy2 = ay - i * 0;
       ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(endX, y);
+      ctx.moveTo(ox2, oy2);
+      ctx.lineTo(ox2 + 7 * z, oy2 - 7 * z);
       ctx.stroke();
-
-      ctx.fillStyle = pin.connected ? '#88ff88' : COLORS.pin;
+      // arrowhead
       ctx.beginPath();
-      ctx.arc(endX, y, PIN_RADIUS * zoom * 0.6, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(ox2 + 7 * z, oy2 - 7 * z);
+      ctx.lineTo(ox2 + 4 * z, oy2 - 7 * z);
+      ctx.moveTo(ox2 + 7 * z, oy2 - 7 * z);
+      ctx.lineTo(ox2 + 7 * z, oy2 - 4 * z);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = comp.selected ? C.selected : C.symLED;
 
-      // Pin label
-      ctx.fillStyle = COLORS.compText;
-      ctx.font      = `${Math.max(6, 7 * zoom)}px monospace`;
-      ctx.textAlign = side === 'left' ? 'left' : 'right';
-      ctx.fillText(pin.name, side === 'left' ? x + 2 : x - 2, y + 4 * zoom);
+    this._pinDot(-(r + lead), 0, comp.selected);
+    this._pinDot(r + lead, 0, comp.selected);
+    this._symLabel(comp, 0, -(r + 10 * z), 0, r + 8 * z, z);
+  }
+
+  /* VCC power flag */
+  _symVCC(comp) {
+    const { ctx } = this;
+    const z = this.zoom;
+    const lw = Math.max(1.2, 1.5 * z);
+
+    ctx.strokeStyle = comp.selected ? C.selected : C.symVCC;
+    ctx.lineWidth   = lw;
+    ctx.lineCap = 'round';
+
+    // Stem
+    ctx.beginPath(); ctx.moveTo(0, 20 * z); ctx.lineTo(0, 4 * z); ctx.stroke();
+    // Arrow head (pointing up)
+    ctx.beginPath();
+    ctx.moveTo(0, -10 * z);
+    ctx.lineTo(-8 * z, 4 * z);
+    ctx.lineTo(8 * z, 4 * z);
+    ctx.closePath();
+    ctx.fillStyle = comp.selected ? C.selected : C.symVCC;
+    ctx.globalAlpha = 0.3; ctx.fill();
+    ctx.globalAlpha = 1;   ctx.stroke();
+
+    // Label
+    ctx.fillStyle = comp.selected ? C.selected : C.symVCC;
+    ctx.font      = `bold ${Math.max(9, 10 * z)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(comp.value || '+VCC', 0, -14 * z);
+
+    this._pinDot(0, 20 * z, comp.selected);
+  }
+
+  /* GND power flag */
+  _symGND(comp) {
+    const { ctx } = this;
+    const z = this.zoom;
+    const lw = Math.max(1.2, 1.5 * z);
+
+    ctx.strokeStyle = comp.selected ? C.selected : C.symGND;
+    ctx.lineWidth   = lw;
+    ctx.lineCap = 'round';
+
+    // Stem
+    ctx.beginPath(); ctx.moveTo(0, -20 * z); ctx.lineTo(0, 0); ctx.stroke();
+    // Three bars
+    const bars = [[16, 0], [10, 6], [5, 12]];
+    for (const [hw, y] of bars) {
+      ctx.beginPath();
+      ctx.moveTo(-hw * z, y * z);
+      ctx.lineTo( hw * z, y * z);
+      ctx.stroke();
+    }
+
+    // Label
+    ctx.fillStyle = comp.selected ? C.selected : C.symGND;
+    ctx.font      = `bold ${Math.max(9, 10 * z)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText('GND', 0, 22 * z);
+
+    this._pinDot(0, -20 * z, comp.selected);
+  }
+
+  /* Generic IC body */
+  _symIC(comp) {
+    const { ctx, zoom } = this;
+    const z = zoom;
+    const pins  = comp.pins ?? [];
+    const leftP  = pins.filter((_, i) => i % 2 === 0);
+    const rightP = pins.filter((_, i) => i % 2 === 1);
+    const rows   = Math.max(leftP.length, rightP.length, 1);
+
+    const pinSpacing = 16 * z;
+    const bodyH   = rows * pinSpacing + 14 * z;
+    const bodyW   = 60 * z;
+    const leadLen = 14 * z;
+    const hw = bodyW / 2, hh = bodyH / 2;
+
+    // Body
+    ctx.fillStyle   = C.compBody;
+    ctx.strokeStyle = comp.selected ? C.selected : C.compBorder;
+    ctx.lineWidth   = comp.selected ? Math.max(2, 2 * z) : Math.max(1, 1.2 * z);
+    ctx.beginPath();
+    ctx.roundRect(-hw, -hh, bodyW, bodyH, 3 * z);
+    ctx.fill(); ctx.stroke();
+
+    // Component name
+    ctx.fillStyle  = C.compText;
+    ctx.font       = `bold ${Math.max(7, 9 * z)}px monospace`;
+    ctx.textAlign  = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(comp.partName.substring(0, 12), 0, -hh + 5 * z);
+
+    // Value
+    ctx.fillStyle = C.compValue;
+    ctx.font      = `${Math.max(6, 8 * z)}px monospace`;
+    ctx.fillText(comp.value || '', 0, -hh + 16 * z);
+    ctx.textBaseline = 'alphabetic';
+
+    // Pins
+    const drawPin = (pin, side, idx) => {
+      const y   = -hh + (idx + 0.5) * pinSpacing + 8 * z;
+      const x0  = side === 'left' ? -hw : hw;
+      const x1  = side === 'left' ? -(hw + leadLen) : hw + leadLen;
+      const txtX = side === 'left' ? x0 + 3 * z : x0 - 3 * z;
+
+      // Lead line
+      ctx.strokeStyle = comp.selected ? C.selected : C.pin;
+      ctx.lineWidth   = Math.max(1, 1.2 * z);
+      ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+
+      // Pin endpoint dot
+      this._pinDot(x1, y, comp.selected);
+
+      // Pin name inside body
+      ctx.fillStyle  = comp.selected ? C.selected : C.pin;
+      ctx.font       = `${Math.max(5, 7 * z)}px monospace`;
+      ctx.textAlign  = side === 'left' ? 'left' : 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(pin.name.substring(0, 8), txtX, y);
+      ctx.textBaseline = 'alphabetic';
     };
 
-    leftPins.forEach((pin, i) => {
-      const y = -hh + 30 * zoom + i * (pinSpacingY * 2);
-      drawPin(pin, -hw, y, 'left');
-    });
-    rightPins.forEach((pin, i) => {
-      const y = -hh + 30 * zoom + i * (pinSpacingY * 2);
-      drawPin(pin, hw, y, 'right');
-    });
+    leftP.forEach((p, i)  => drawPin(p, 'left',  i));
+    rightP.forEach((p, i) => drawPin(p, 'right', i));
   }
 
-  // ── Junctions ─────────────────────────────────────────────────────────────
+  /* Helper: pin endpoint circle */
+  _pinDot(x, y, selected) {
+    const { ctx } = this;
+    ctx.fillStyle = selected ? C.selected : C.pin;
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(2, PIN_R * this.zoom * 0.7), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* Helper: reference + value labels */
+  _symLabel(comp, tx, ty, bx, by, z) {
+    const { ctx } = this;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = C.compText;
+    ctx.font      = `bold ${Math.max(7, 9 * z)}px monospace`;
+    ctx.fillText(comp.partName, tx, ty);
+    ctx.fillStyle = C.compValue;
+    ctx.font      = `${Math.max(6, 8 * z)}px monospace`;
+    ctx.fillText(comp.value || '', bx, by);
+  }
+
+  /* ── Junctions ──────────────────────────────────────────────────────────── */
   _drawJunctions() {
     const { ctx } = this;
-    ctx.fillStyle = COLORS.junction;
-    for (const junc of state.schematic.junctions) {
-      const s = this.worldToScreen(junc.x, junc.y);
+    ctx.fillStyle = C.junction;
+    for (const j of state.schematic.junctions) {
+      const s = this.w2s(j.x, j.y);
       ctx.beginPath();
-      ctx.arc(s.x, s.y, 4 * this.zoom, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y, Math.max(3, 4 * this.zoom), 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
-  // ── Vias ──────────────────────────────────────────────────────────────────
+  /* ── Vias ───────────────────────────────────────────────────────────────── */
   _drawVias() {
     const { ctx } = this;
-    for (const via of Object.values(state.pcb.vias)) {
-      const s   = this.worldToScreen(via.x, via.y);
-      const r   = (via.padDiameter / 2) * GRID_SIZE * this.zoom;
-      const dr  = (via.drillDiameter / 2) * GRID_SIZE * this.zoom;
-      ctx.fillStyle   = COLORS.via;
-      ctx.strokeStyle = '#ffffff';
+    for (const v of Object.values(state.pcb.vias)) {
+      const s  = this.w2s(v.x, v.y);
+      const r  = (v.padDiameter  / 2) * GRID * this.zoom;
+      const dr = (v.drillDiameter / 2) * GRID * this.zoom;
+      ctx.fillStyle   = C.via;
+      ctx.strokeStyle = '#ffffff44';
       ctx.lineWidth   = 1;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#0d0d1a';
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, dr, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle   = C.bg;
+      ctx.beginPath(); ctx.arc(s.x, s.y, Math.max(1, dr), 0, Math.PI * 2); ctx.fill();
     }
   }
 
-  // ── Probes ────────────────────────────────────────────────────────────────
+  /* ── Probes ─────────────────────────────────────────────────────────────── */
   _drawProbes() {
     const { ctx } = this;
-    for (const probe of Object.values(state.schematic.probes)) {
-      const s = this.worldToScreen(probe.x, probe.y);
-      ctx.strokeStyle = COLORS.probe;
-      ctx.fillStyle   = 'rgba(0,229,255,0.15)';
-      ctx.lineWidth   = 1.5;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, 8 * this.zoom, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      // Label
-      ctx.fillStyle = COLORS.probe;
-      ctx.font      = `bold ${Math.max(8, 9 * this.zoom)}px monospace`;
-      ctx.textAlign = 'center';
-      ctx.fillText(probe.probeType[0].toUpperCase(), s.x, s.y + 4 * this.zoom);
+    for (const p of Object.values(state.schematic.probes)) {
+      const s = this.w2s(p.x, p.y);
+      const r = Math.max(6, 8 * this.zoom);
+      ctx.strokeStyle = C.probe;
+      ctx.fillStyle   = 'rgba(197,134,192,0.15)';
+      ctx.lineWidth   = Math.max(1, 1.5 * this.zoom);
+      ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle  = C.probe;
+      ctx.font       = `bold ${Math.max(7, 9 * this.zoom)}px monospace`;
+      ctx.textAlign  = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(p.probeType[0].toUpperCase(), s.x, s.y);
+      ctx.textBaseline = 'alphabetic';
     }
   }
 
-  // ── AI Suggestions ────────────────────────────────────────────────────────
+  /* ── AI Suggestions ─────────────────────────────────────────────────────── */
   _drawSuggestions() {
     const { ctx } = this;
-    for (const sug of this.suggestions) {
-      const p1 = this.worldToScreen(sug.fromX, sug.fromY);
-      const p2 = this.worldToScreen(sug.toX, sug.toY);
-      const col = COLORS.suggestion[sug.netClass] ?? '#aaaaaa';
-
-      ctx.setLineDash([4, 3]);
+    for (const sg of this.suggestions) {
+      const p1 = this.w2s(sg.fromX, sg.fromY), p2 = this.w2s(sg.toX, sg.toY);
+      const col = C.nets[sg.netClass] ?? '#888888';
+      ctx.setLineDash([5, 4]);
       ctx.strokeStyle = col;
-      ctx.lineWidth   = 1.5;
-      ctx.globalAlpha = 0.75;
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.globalAlpha = 1;
-
-      // Label at midpoint
-      const mx = (p1.x + p2.x) / 2;
-      const my = (p1.y + p2.y) / 2;
-      ctx.fillStyle = col;
-      ctx.font      = `${Math.max(8, 9 * this.zoom)}px monospace`;
-      ctx.textAlign = 'center';
-      ctx.fillText(sug.label, mx, my - 6);
+      ctx.lineWidth   = Math.max(1, 1.2 * this.zoom);
+      ctx.globalAlpha = 0.7;
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+      const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+      ctx.fillStyle  = col;
+      ctx.font       = `${Math.max(8, 9 * this.zoom)}px monospace`;
+      ctx.textAlign  = 'center';
+      ctx.fillText(sg.label, mx, my - 5);
     }
   }
 
-  // ── Ratsnest (unrouted PCB connections) ───────────────────────────────────
+  /* ── Ratsnest ───────────────────────────────────────────────────────────── */
   _drawRatsnest() {
     const { ctx } = this;
-    ctx.setLineDash([3, 4]);
-    ctx.strokeStyle = COLORS.ratsnest;
+    ctx.setLineDash([3, 5]);
+    ctx.strokeStyle = C.ratsnest;
     ctx.lineWidth   = 0.8;
-    ctx.globalAlpha = 0.6;
+    ctx.globalAlpha = 0.5;
     for (const rn of state.pcb.ratsnest) {
-      const p1 = this.worldToScreen(rn.x1, rn.y1);
-      const p2 = this.worldToScreen(rn.x2, rn.y2);
-      ctx.beginPath();
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
-      ctx.stroke();
+      const p1 = this.w2s(rn.x1, rn.y1), p2 = this.w2s(rn.x2, rn.y2);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
     }
-    ctx.setLineDash([]);
-    ctx.globalAlpha = 1;
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
   }
 
-  // ── DRC violation overlays ────────────────────────────────────────────────
-  _drawDRCOverlays() {
+  /* ── DRC overlays ───────────────────────────────────────────────────────── */
+  _drawDRC() {
     if (!this.drcViolations.length) return;
     const { ctx } = this;
-    ctx.strokeStyle = COLORS.drcViolation;
-    ctx.lineWidth   = 2;
-    ctx.globalAlpha = this._drcFlash ? 0.9 : 0.4;
+    ctx.strokeStyle = C.drcErr;
+    ctx.lineWidth   = Math.max(1.5, 2 * this.zoom);
+    ctx.globalAlpha = this._flash ? 0.9 : 0.35;
     for (const v of this.drcViolations) {
       if (v.x == null) continue;
-      const s = this.worldToScreen(v.x, v.y);
+      const s = this.w2s(v.x, v.y);
+      const r = Math.max(8, 12 * this.zoom);
+      // X marker
       ctx.beginPath();
-      ctx.arc(s.x, s.y, 12 * this.zoom, 0, Math.PI * 2);
+      ctx.moveTo(s.x - r, s.y - r); ctx.lineTo(s.x + r, s.y + r);
+      ctx.moveTo(s.x + r, s.y - r); ctx.lineTo(s.x - r, s.y + r);
       ctx.stroke();
+      ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.stroke();
     }
     ctx.globalAlpha = 1;
   }
 
-  // ── Drop component onto canvas ────────────────────────────────────────────
-  getCanvasDropPoint(clientX, clientY) {
+  /* ── Drop helper ────────────────────────────────────────────────────────── */
+  getCanvasDropPoint(cx, cy) {
     const rect = this.canvas.getBoundingClientRect();
-    return this.snapToGrid(
-      this.screenToWorld(clientX - rect.left, clientY - rect.top).x,
-      this.screenToWorld(clientX - rect.left, clientY - rect.top).y
-    );
+    const w = this.s2w(cx - rect.left, cy - rect.top);
+    return this.snap(w.x, w.y);
   }
 }
