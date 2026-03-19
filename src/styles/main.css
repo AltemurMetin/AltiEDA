@@ -565,6 +565,18 @@ body {
 }
 .layer-thickness:focus { border-color: var(--accent2); }
 
+/* ── Touch-friendly sizes ── */
+@media (pointer: coarse) {
+  .tb-mode, .tb-btn { height: 36px; padding: 4px 12px; }
+  .tb-icon          { width: 36px; height: 36px; font-size: 18px; }
+  .comp-item        { padding: 10px 8px; }
+  #statusbar        { height: 28px; font-size: 12px; }
+  .menu-item        { padding: 0 10px; height: 30px; }
+  .menu-entry       { padding: 8px 16px; }
+  .tab-btn          { padding: 10px 4px; }
+  .icon-btn         { width: 28px; height: 28px; font-size: 16px; }
+}
+
 /* ── Scrollbar global ── */
 ::-webkit-scrollbar       { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg2); }

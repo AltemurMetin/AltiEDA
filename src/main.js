@@ -58,6 +58,51 @@ function buildSidebar() {
         </div>`;
 
       div.addEventListener('dragstart', e => e.dataTransfer.setData('partId', lib.partId));
+
+      // ── Touch drag from sidebar → canvas ──
+      let _ghost = null;
+      div.addEventListener('touchstart', e => {
+        e.stopPropagation();
+        const t = e.touches[0];
+        _ghost = document.createElement('div');
+        _ghost.textContent = lib.partName;
+        Object.assign(_ghost.style, {
+          position: 'fixed', zIndex: '9999', pointerEvents: 'none',
+          background: 'rgba(78,201,176,0.25)', border: '1px solid #4ec9b0',
+          color: '#4ec9b0', padding: '4px 12px', borderRadius: '4px',
+          fontSize: '12px', fontFamily: 'monospace',
+          left: `${t.clientX + 12}px`, top: `${t.clientY - 24}px`,
+        });
+        document.body.appendChild(_ghost);
+      }, { passive: true });
+
+      div.addEventListener('touchmove', e => {
+        e.preventDefault();
+        const t = e.touches[0];
+        if (_ghost) {
+          _ghost.style.left = `${t.clientX + 12}px`;
+          _ghost.style.top  = `${t.clientY - 24}px`;
+        }
+      }, { passive: false });
+
+      div.addEventListener('touchend', e => {
+        if (_ghost) { document.body.removeChild(_ghost); _ghost = null; }
+        const t  = e.changedTouches[0];
+        const el = document.elementFromPoint(t.clientX, t.clientY);
+        const cvs = document.getElementById('main-canvas');
+        if (el === cvs || cvs?.contains(el)) {
+          const pt   = renderer.getCanvasDropPoint(t.clientX, t.clientY);
+          const comp = createComponent(lib, pt.x, pt.y);
+          state.addComponent(comp);
+          const sugs   = generateSuggestions(comp);
+          const powerS = sugs.filter(s => ['POWER','GND'].includes(s.netClass));
+          acceptAllSuggestions(powerS);
+          renderer.suggestions = sugs.filter(s => !['POWER','GND'].includes(s.netClass));
+          renderer.render();
+          setMsg(`Placed ${comp.partName}`);
+        }
+      }, { passive: true });
+
       list.appendChild(div);
     }
   }
@@ -116,7 +161,6 @@ canvas.addEventListener('mousemove', e => {
   const rect = canvas.getBoundingClientRect();
   const w    = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
 
-  // Update coordinate display
   const mm = (v) => (v * 2.54).toFixed(2);
   document.getElementById('sb-coords').textContent =
     `X: ${mm(w.x)} mm  Y: ${mm(w.y)} mm`;
@@ -136,6 +180,104 @@ canvas.addEventListener('mousemove', e => {
 
 canvas.addEventListener('mouseup', () => { _pan = false; _panPt = null; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// ── Touch support ─────────────────────────────────────────────────────────────
+let _touch = {
+  lastPan: null,
+  lastDist: null,     // for pinch zoom
+  tapStart: null,     // {x,y,t} for tap detection
+  moved: false,
+};
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    _touch.lastPan  = { x: t.clientX, y: t.clientY };
+    _touch.tapStart = { x: t.clientX, y: t.clientY, t: Date.now() };
+    _touch.moved    = false;
+    _touch.lastDist = null;
+
+    // Show wire preview origin on touch start if wire tool active
+    if (activeTool === 'wire' && wireTool.active) {
+      const rect = canvas.getBoundingClientRect();
+      const w    = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
+      renderer._wirePreview = { x1: wireTool.startX, y1: wireTool.startY, x2: w.x, y2: w.y };
+      renderer.render();
+    }
+  } else if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    _touch.lastDist = Math.hypot(dx, dy);
+    _touch.lastPan  = null;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    const t   = e.touches[0];
+    const dx  = t.clientX - (_touch.lastPan?.x ?? t.clientX);
+    const dy  = t.clientY - (_touch.lastPan?.y ?? t.clientY);
+    const dist = Math.hypot(
+      t.clientX - (_touch.tapStart?.x ?? t.clientX),
+      t.clientY - (_touch.tapStart?.y ?? t.clientY)
+    );
+
+    // Mark as moved if finger travelled > 8px
+    if (dist > 8) _touch.moved = true;
+
+    // Wire preview while dragging with tool active
+    if (activeTool === 'wire' && wireTool.active) {
+      const rect = canvas.getBoundingClientRect();
+      const w    = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
+      renderer._wirePreview = { x1: wireTool.startX, y1: wireTool.startY, x2: w.x, y2: w.y };
+      const mm = (v) => (v * 2.54).toFixed(2);
+      document.getElementById('sb-coords').textContent = `X: ${mm(w.x)} mm  Y: ${mm(w.y)} mm`;
+      renderer.render();
+    } else if (_touch.moved) {
+      // Pan
+      renderer.pan(dx, dy);
+      const rect = canvas.getBoundingClientRect();
+      const w    = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
+      const mm = (v) => (v * 2.54).toFixed(2);
+      document.getElementById('sb-coords').textContent = `X: ${mm(w.x)} mm  Y: ${mm(w.y)} mm`;
+    }
+
+    _touch.lastPan = { x: t.clientX, y: t.clientY };
+
+  } else if (e.touches.length === 2) {
+    // Pinch zoom
+    const dx   = e.touches[0].clientX - e.touches[1].clientX;
+    const dy   = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.hypot(dx, dy);
+    if (_touch.lastDist) {
+      const factor = dist / _touch.lastDist;
+      const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const rect = canvas.getBoundingClientRect();
+      renderer.zoomAt(cx - rect.left, cy - rect.top, factor);
+      updateZoomDisplay();
+    }
+    _touch.lastDist = dist;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (e.changedTouches.length === 1 && !_touch.moved) {
+    const t    = e.changedTouches[0];
+    const dt   = Date.now() - (_touch.tapStart?.t ?? 0);
+    // Tap: finger didn't move and lifted within 300ms
+    if (dt < 300) {
+      handleClick({ clientX: t.clientX, clientY: t.clientY });
+    }
+  }
+  if (e.touches.length === 0) {
+    _touch.lastPan  = null;
+    _touch.lastDist = null;
+  }
+}, { passive: false });
 
 // ── Zoom ──────────────────────────────────────────────────────────────────────
 canvas.addEventListener('wheel', e => {
