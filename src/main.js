@@ -229,10 +229,9 @@ canvas.addEventListener('mousemove', e => {
     _panPt = { x: e.clientX, y: e.clientY };
   }
 
-  // Wire preview (L-shape)
+  // Wire preview
   if (activeTool === 'wire' && wireTool.active) {
-    wireTool.preview(w.x, w.y);          // updates wireTool._previewWire
-    renderer._wirePreview = wireTool._previewWire;
+    renderer._wirePreview = { x1: wireTool.startX, y1: wireTool.startY, x2: w.x, y2: w.y };
     renderer.render();
   }
 
@@ -271,7 +270,6 @@ canvas.addEventListener('mouseup', e => {
 let _touch = {
   lastPan: null,
   lastDist: null,
-  wireDrag: false,
   tapStart: null,
   moved: false,
   compDrag: null,   // component being dragged by touch
@@ -280,38 +278,29 @@ let _touch = {
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
   if (e.touches.length === 1) {
-    const t    = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    const w    = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
-
+    const t = e.touches[0];
     _touch.lastPan  = { x: t.clientX, y: t.clientY };
     _touch.tapStart = { x: t.clientX, y: t.clientY, time: Date.now() };
     _touch.moved    = false;
     _touch.lastDist = null;
     _touch.compDrag = null;
-    _touch.wireDrag = false;
 
-    if (activeTool === 'wire') {
-      // Try to start / continue wire by touch — begin() will snap to nearest pin
-      const err = wireTool.active ? null : wireTool.begin(w.x, w.y);
-      if (err) {
-        // No pin near touch-down: just show message, don't start drag
-        setMsg(err.error, true);
-      } else if (wireTool.active) {
-        _touch.wireDrag = true;
-        wireTool.preview(w.x, w.y);
-        renderer._wirePreview = wireTool._previewWire;
-        renderer.render();
-      }
-    } else if (!activeTool) {
+    if (!activeTool) {
       // Hit-test: maybe start component drag
-      const hit = hitTest(w.x, w.y);
+      const rect  = canvas.getBoundingClientRect();
+      const world = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
+      const hit   = hitTest(world.x, world.y);
       if (hit) {
         Object.values(state.schematic.components).forEach(c => c.selected = false);
         hit.selected    = true;
         _touch.compDrag = hit;
         renderer.render();
       }
+    } else if (activeTool === 'wire' && wireTool.active) {
+      const rect = canvas.getBoundingClientRect();
+      const w    = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
+      renderer._wirePreview = { x1: wireTool.startX, y1: wireTool.startY, x2: w.x, y2: w.y };
+      renderer.render();
     }
   } else if (e.touches.length === 2) {
     const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -319,9 +308,6 @@ canvas.addEventListener('touchstart', e => {
     _touch.lastDist = Math.hypot(dx, dy);
     _touch.lastPan  = null;
     _touch.compDrag = null;
-    _touch.wireDrag = false;
-    // Cancel wire drag on 2-finger
-    if (wireTool.active) { wireTool.end(); renderer._wirePreview = null; }
   }
 }, { passive: false });
 
@@ -329,23 +315,24 @@ canvas.addEventListener('touchmove', e => {
   e.preventDefault();
   if (e.touches.length === 1) {
     const t    = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    const w    = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
     const dist = Math.hypot(
       t.clientX - (_touch.tapStart?.x ?? t.clientX),
       t.clientY - (_touch.tapStart?.y ?? t.clientY)
     );
     if (dist > 6) _touch.moved = true;
 
-    if (_touch.wireDrag && wireTool.active) {
-      // L-shape wire preview follows finger
-      wireTool.preview(w.x, w.y);
-      renderer._wirePreview = wireTool._previewWire;
+    if (_touch.compDrag && _touch.moved) {
+      // Drag component
+      moveCompDrag(t.clientX, t.clientY);
+    } else if (activeTool === 'wire' && wireTool.active) {
+      // Wire preview
+      const rect = canvas.getBoundingClientRect();
+      const w    = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
+      renderer._wirePreview = { x1: wireTool.startX, y1: wireTool.startY, x2: w.x, y2: w.y };
       updateCoords(t.clientX, t.clientY);
       renderer.render();
-    } else if (_touch.compDrag && _touch.moved) {
-      moveCompDrag(t.clientX, t.clientY);
     } else if (_touch.moved && !_touch.compDrag) {
+      // Pan canvas
       const dx = t.clientX - (_touch.lastPan?.x ?? t.clientX);
       const dy = t.clientY - (_touch.lastPan?.y ?? t.clientY);
       renderer.pan(dx, dy);
@@ -355,6 +342,7 @@ canvas.addEventListener('touchmove', e => {
     _touch.lastPan = { x: t.clientX, y: t.clientY };
 
   } else if (e.touches.length === 2) {
+    // Pinch zoom
     const dx   = e.touches[0].clientX - e.touches[1].clientX;
     const dy   = e.touches[0].clientY - e.touches[1].clientY;
     const dist = Math.hypot(dx, dy);
@@ -374,44 +362,20 @@ canvas.addEventListener('touchend', e => {
   e.preventDefault();
   const t  = e.changedTouches[0];
   const dt = Date.now() - (_touch.tapStart?.time ?? 0);
-  const rect = canvas.getBoundingClientRect();
-  const w    = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
 
-  if (_touch.wireDrag && wireTool.active) {
-    // Finger lifted: try to commit wire at current position
-    const result = wireTool.commit(w.x, w.y);
-    renderer._wirePreview = null;
-    _touch.wireDrag = false;
-    if (result?.error) {
-      setMsg(result.error, true);
-      wireTool.end();            // cancel — user can start fresh
-    } else if (Array.isArray(result) && result.length > 0) {
-      setMsg('Wire placed — tap next pin or ESC to stop');
-      // Keep wire active for chaining: update preview at lifted position
-      wireTool.preview(w.x, w.y);
-      renderer._wirePreview = null;  // clear until next touch
-      renderer.render();
+  if (_touch.compDrag) {
+    if (!_touch.moved) {
+      // Tap on component = open properties
+      onComponentSelect(_touch.compDrag.partId);
+    } else {
+      setMsg(`Moved ${_touch.compDrag.partName}`);
     }
-  } else if (_touch.compDrag) {
-    if (!_touch.moved) onComponentSelect(_touch.compDrag.partId);
-    else setMsg(`Moved ${_touch.compDrag.partName}`);
     _touch.compDrag = null;
     endCompDrag();
     renderer.render();
   } else if (!_touch.moved && dt < 350) {
-    if (activeTool === 'wire' && wireTool.active) {
-      // Short tap while wire is started: try to commit
-      const result = wireTool.commit(w.x, w.y);
-      renderer._wirePreview = null;
-      if (result?.error) setMsg(result.error, true);
-      else if (Array.isArray(result) && result.length > 0) {
-        setMsg('Wire placed — tap next pin or ESC to stop');
-      }
-      renderer.render();
-    } else {
-      // Regular tap: tool action
-      handleClick({ clientX: t.clientX, clientY: t.clientY });
-    }
+    // Tap on empty canvas = tool action
+    handleClick({ clientX: t.clientX, clientY: t.clientY });
   }
 
   if (e.touches.length === 0) {
@@ -440,17 +404,13 @@ function handleClick(e) {
 
   if (activeTool === 'wire') {
     if (!wireTool.active) {
-      const err = wireTool.begin(world.x, world.y);
-      if (err) setMsg(err.error, true);
-      else setMsg('Click on a pin to end the wire — ESC to cancel');
+      wireTool.begin(world.x, world.y);
+      setMsg('Click to place second endpoint — ESC to cancel');
     } else {
+      renderer._wirePreview = null;
       const result = wireTool.commit(world.x, world.y);
-      if (result?.error) {
-        setMsg(result.error, true);
-      } else if (Array.isArray(result) && result.length > 0) {
-        renderer._wirePreview = null;
-        setMsg('Wire placed — click next pin or ESC to stop');
-      }
+      if (result?.error) setMsg(`ERC: ${result.error}`, true);
+      else setMsg('Wire placed — click to continue or ESC to stop');
     }
     renderer.render(); return;
   }
@@ -460,15 +420,9 @@ function handleClick(e) {
     renderer.render(); return;
   }
 
-  if (activeTool === 'probe' || activeTool === 'probe-v') {
+  if (activeTool === 'probe') {
     const probe = placeProbeTool(world.x, world.y, 'voltage', renderer);
-    setMsg(`Voltage probe on net: ${probe.netName ?? '(unconnected)'}`);
-    renderer.render(); return;
-  }
-
-  if (activeTool === 'probe-a') {
-    const probe = placeProbeTool(world.x, world.y, 'current', renderer);
-    setMsg(`Current probe on net: ${probe.netName ?? '(unconnected)'}`);
+    setMsg(`Probe on net: ${probe.netName ?? '(unconnected)'}`);
     renderer.render(); return;
   }
 
@@ -476,30 +430,16 @@ function handleClick(e) {
   const hit = hitTest(world.x, world.y);
   Object.values(state.schematic.components).forEach(c => c.selected = false);
   hideCtxMenu();
-  // Deselect all wires first
-  Object.values(state.schematic.wires).forEach(w => { w.selected = false; });
-
   if (hit) {
     hit.selected = true;
     onComponentSelect(hit.partId);
     showCompActions(hit);
   } else {
-    // Check wire hit
-    const wireHit = renderer.wireHitTest(world.x, world.y);
-    if (wireHit) {
-      wireHit.selected = true;
-      _selectedWireId  = wireHit.id;
-      setMsg('Wire selected — Del to delete, ESC to deselect');
-    } else {
-      _selectedWireId = null;
-      hidePanel();
-      hideCompActions();
-    }
+    hidePanel();
+    hideCompActions();
   }
   renderer.render();
 }
-
-let _selectedWireId = null;
 
 function hitTest(wx, wy) {
   // Give small symbols (R/C/LED/power) a generous hit radius of 4 grid units
@@ -659,7 +599,6 @@ canvas.addEventListener('touchstart', e2 => {
   if (e2.touches.length !== 1) return;
   const t = e2.touches[0];
   _longPressTimer = setTimeout(() => {
-    if (activeTool === 'wire') return;   // don't show context menu in wire mode
     const rect  = canvas.getBoundingClientRect();
     const world = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
     const hit   = hitTest(world.x, world.y);
@@ -765,7 +704,7 @@ window.addEventListener('keydown', e => {
   switch (e.key.toLowerCase()) {
     case 'w':  setTool('wire');  break;
     case 'v':  setTool('via');   break;
-    case 'p':  setTool('probe-v'); break;
+    case 'p':  setTool('probe'); break;
     case 'g':  renderer.showGrid = !renderer.showGrid; renderer.render(); break;
     case '+':  case '=': renderer.zoomAt(canvas.width/2, canvas.height/2, 1.25); updateZoomDisplay(); break;
     case '-':  renderer.zoomAt(canvas.width/2, canvas.height/2, 0.8); updateZoomDisplay(); break;
@@ -773,24 +712,13 @@ window.addEventListener('keydown', e => {
       renderer._wirePreview = null;
       if (wireTool.active) wireTool.end();
       setTool(null);
-      // Deselect wires
-      Object.values(state.schematic.wires).forEach(w => { w.selected = false; });
-      _selectedWireId = null;
-      renderer.render();
       break;
     case 'delete':
     case 'backspace':
-      // Delete selected components
       Object.values(state.schematic.components)
         .filter(c => c.selected)
         .forEach(c => state.removeComponent(c.id));
       hideCompActions();
-      // Delete selected wire
-      if (_selectedWireId) {
-        state.removeWire(_selectedWireId);
-        _selectedWireId = null;
-        setMsg('Wire deleted');
-      }
       renderer.render();
       break;
   }
@@ -805,32 +733,10 @@ window.addEventListener('keydown', e => {
   }
 });
 
-// ── Component library drawer ──────────────────────────────────────────────────
-const panelLeft   = document.getElementById('panel-left');
-const backdrop    = document.getElementById('lib-backdrop');
-const btnLibOpen  = document.getElementById('btn-lib-open');
-const btnLibClose = document.getElementById('btn-lib-collapse');
-
-function openLibPanel() {
-  panelLeft?.classList.remove('collapsed');
-  backdrop?.classList.add('visible');
-  btnLibOpen?.classList.add('hidden-toggle');
-}
-function closeLibPanel() {
-  panelLeft?.classList.add('collapsed');
-  backdrop?.classList.remove('visible');
-  btnLibOpen?.classList.remove('hidden-toggle');
-}
-
-btnLibOpen?.addEventListener('click',  openLibPanel);
-btnLibClose?.addEventListener('click', closeLibPanel);
-backdrop?.addEventListener('click',    closeLibPanel);
-
 // ── Toolbar buttons ───────────────────────────────────────────────────────────
-document.getElementById('btn-wire')?.addEventListener('click',    () => setTool('wire'));
-document.getElementById('btn-via')?.addEventListener('click',     () => setTool('via'));
-document.getElementById('btn-probe-v')?.addEventListener('click', () => setTool('probe-v'));
-document.getElementById('btn-probe-a')?.addEventListener('click', () => setTool('probe-a'));
+document.getElementById('btn-wire')?.addEventListener('click',  () => setTool('wire'));
+document.getElementById('btn-via')?.addEventListener('click',   () => setTool('via'));
+document.getElementById('btn-probe')?.addEventListener('click', () => setTool('probe'));
 
 document.getElementById('btn-zoom-in')?.addEventListener('click',
   () => { renderer.zoomAt(canvas.width/2, canvas.height/2, 1.25); updateZoomDisplay(); });
@@ -919,15 +825,11 @@ function setTool(tool) {
   activeTool = tool;
   renderer._wirePreview = null;
   if (tool === null && wireTool.active) wireTool.end();
-  // Show pin targets overlay when wire tool is active (helps touch users)
-  renderer.showPinTargets = (tool === 'wire');
-  renderer.render();
 
   document.querySelectorAll('.tb-btn').forEach(b => b.classList.remove('active'));
-  if (tool === 'wire')    document.getElementById('btn-wire')?.classList.add('active');
-  if (tool === 'via')     document.getElementById('btn-via')?.classList.add('active');
-  if (tool === 'probe-v') document.getElementById('btn-probe-v')?.classList.add('active');
-  if (tool === 'probe-a') document.getElementById('btn-probe-a')?.classList.add('active');
+  if (tool === 'wire')  document.getElementById('btn-wire')?.classList.add('active');
+  if (tool === 'via')   document.getElementById('btn-via')?.classList.add('active');
+  if (tool === 'probe') document.getElementById('btn-probe')?.classList.add('active');
 
   canvas.style.cursor = tool ? 'crosshair' : 'default';
 
