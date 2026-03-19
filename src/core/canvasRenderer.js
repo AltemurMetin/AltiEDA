@@ -138,6 +138,7 @@ export class CanvasRenderer {
     if (this.showGrid) this._drawGrid();
     this._drawWires();
     this._drawComponents();
+    if (this.showPinTargets) this._drawPinTargets();
     this._drawJunctions();
     this._drawVias();
     this._drawProbes();
@@ -166,6 +167,41 @@ export class CanvasRenderer {
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fill();
+      }
+    }
+  }
+
+  /* ── Pin targets (shown in wire mode) ──────────────────────────────────── */
+  _drawPinTargets() {
+    const { ctx } = this;
+    const r   = Math.max(10, 14 * this.zoom);   // large touch target
+    const lw  = Math.max(1.5, 2 * this.zoom);
+    for (const comp of Object.values(state.schematic.components)) {
+      for (const pin of comp.pins) {
+        const px = comp.x + pin.offsetX;
+        const py = comp.y + pin.offsetY;
+        const s  = this.w2s(px, py);
+        const connected = !!pin.netId;
+        ctx.strokeStyle = connected ? '#4ade80' : '#60a5fa';
+        ctx.fillStyle   = connected ? 'rgba(74,222,128,0.12)' : 'rgba(96,165,250,0.12)';
+        ctx.lineWidth   = lw;
+        ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+        // Dot at center
+        ctx.fillStyle = connected ? '#4ade80' : '#60a5fa';
+        ctx.beginPath(); ctx.arc(s.x, s.y, Math.max(2, 3 * this.zoom), 0, Math.PI * 2);
+        ctx.fill();
+        // Pin name (small label)
+        if (this.zoom > 0.6) {
+          ctx.fillStyle    = connected ? '#4ade80' : '#93c5fd';
+          ctx.font         = `${Math.max(7, 8 * this.zoom)}px monospace`;
+          ctx.textAlign    = 'center';
+          ctx.textBaseline = 'top';
+          ctx.globalAlpha  = 0.8;
+          ctx.fillText(pin.name, s.x, s.y + r + 2);
+          ctx.globalAlpha  = 1;
+          ctx.textBaseline = 'alphabetic';
+        }
       }
     }
   }
