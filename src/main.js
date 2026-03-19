@@ -529,9 +529,16 @@ let _ctxTarget = null;
 
 function showCtxMenu(comp, screenX, screenY) {
   _ctxTarget = comp;
-  ctxMenu.style.left = `${screenX}px`;
-  ctxMenu.style.top  = `${screenY}px`;
+  // Set title to component name
+  const title = document.getElementById('ctx-comp-name');
+  if (title) title.textContent = comp.partName + (comp.value ? ` (${comp.value})` : '');
+  // Ensure menu stays within viewport
   ctxMenu.classList.remove('hidden');
+  const mw = ctxMenu.offsetWidth  || 180;
+  const mh = ctxMenu.offsetHeight || 200;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  ctxMenu.style.left = `${Math.min(screenX, vw - mw - 8)}px`;
+  ctxMenu.style.top  = `${Math.min(screenY, vh - mh - 8)}px`;
 }
 
 function hideCtxMenu() {
@@ -539,10 +546,30 @@ function hideCtxMenu() {
   _ctxTarget = null;
 }
 
-document.getElementById('ctx-delete')?.addEventListener('click',  () => { _actionTarget = _ctxTarget; deleteSelected(); hideCtxMenu(); });
-document.getElementById('ctx-rotate')?.addEventListener('click',  () => { _actionTarget = _ctxTarget; rotateSelected(); hideCtxMenu(); });
-document.getElementById('ctx-mirror')?.addEventListener('click',  () => { _actionTarget = _ctxTarget; mirrorSelected(); hideCtxMenu(); });
-document.getElementById('ctx-replace')?.addEventListener('click', () => { _actionTarget = _ctxTarget; replaceSelected(); hideCtxMenu(); });
+document.getElementById('ctx-delete')?.addEventListener('click', () => {
+  _actionTarget = _ctxTarget; deleteSelected(); hideCtxMenu();
+});
+document.getElementById('ctx-rotate')?.addEventListener('click', () => {
+  _actionTarget = _ctxTarget; rotateSelected(); hideCtxMenu();
+});
+document.getElementById('ctx-mirror')?.addEventListener('click', () => {
+  _actionTarget = _ctxTarget; mirrorSelected(); hideCtxMenu();
+});
+document.getElementById('ctx-replace')?.addEventListener('click', () => {
+  _actionTarget = _ctxTarget; replaceSelected(); hideCtxMenu();
+});
+document.getElementById('ctx-properties')?.addEventListener('click', () => {
+  if (_ctxTarget) { onComponentSelect(_ctxTarget.partId); showCompActions(_ctxTarget); }
+  hideCtxMenu();
+});
+document.getElementById('ctx-connections')?.addEventListener('click', () => {
+  if (!_ctxTarget) { hideCtxMenu(); return; }
+  const comp  = _ctxTarget;
+  const nets  = comp.pins.filter(p => p.netId).map(p => `${p.name}: ${p.netId}`);
+  const msg   = nets.length ? nets.join(', ') : 'No connected nets';
+  setMsg(`${comp.partName} connections — ${msg}`);
+  hideCtxMenu();
+});
 
 // Close context menu on click outside
 document.addEventListener('click', e => {
