@@ -112,7 +112,7 @@ let _activeTab = 'specs';
 let _panelVisible = false;
 
 // ── Panel DOM refs ─────────────────────────────────────────────────────────────
-const panel        = () => document.getElementById('sidebar-right');
+const panel        = () => document.getElementById('panel-right');
 const tabSpecs     = () => document.getElementById('tab-specs');
 const tabSO        = () => document.getElementById('tab-stackoverflow');
 const tabGH        = () => document.getElementById('tab-github');

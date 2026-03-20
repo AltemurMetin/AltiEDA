@@ -107,6 +107,13 @@ class StateManager {
     return via;
   }
 
+  removeVia(id) {
+    const via = this.pcb.vias[id];
+    if (!via) return;
+    delete this.pcb.vias[id];
+    this._emit('via:remove', via);
+  }
+
   // ── Probe management ──────────────────────────────────────────────────────
   addProbe(probe) {
     this.schematic.probes[probe.id] = probe;

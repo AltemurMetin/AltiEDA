@@ -476,12 +476,15 @@ function handleClick(e) {
   // Selection
   const hit = hitTest(world.x, world.y);
   Object.values(state.schematic.components).forEach(c => c.selected = false);
+  Object.values(state.pcb.vias).forEach(v => { v.selected = false; });
   hideCtxMenu();
   // Deselect all wires first
   Object.values(state.schematic.wires).forEach(w => { w.selected = false; });
 
   if (hit) {
     hit.selected = true;
+    _selectedWireId = null;
+    _selectedViaId  = null;
     onComponentSelect(hit.partId);
     showCompActions(hit);
   } else {
@@ -490,17 +493,29 @@ function handleClick(e) {
     if (wireHit) {
       wireHit.selected = true;
       _selectedWireId  = wireHit.id;
+      _selectedViaId   = null;
       setMsg('Wire selected — Del to delete, ESC to deselect');
     } else {
-      _selectedWireId = null;
-      hidePanel();
-      hideCompActions();
+      // Check via hit
+      const viaHit = renderer.viaHitTest(world.x, world.y);
+      if (viaHit) {
+        viaHit.selected = true;
+        _selectedViaId  = viaHit.id;
+        _selectedWireId = null;
+        setMsg('Via selected — Del to delete, ESC to deselect');
+      } else {
+        _selectedWireId = null;
+        _selectedViaId  = null;
+        hidePanel();
+        hideCompActions();
+      }
     }
   }
   renderer.render();
 }
 
 let _selectedWireId = null;
+let _selectedViaId  = null;
 
 function hitTest(wx, wy) {
   // Give small symbols (R/C/LED/power) a generous hit radius of 4 grid units
@@ -774,9 +789,11 @@ window.addEventListener('keydown', e => {
       renderer._wirePreview = null;
       if (wireTool.active) wireTool.end();
       setTool(null);
-      // Deselect wires
+      // Deselect wires and vias
       Object.values(state.schematic.wires).forEach(w => { w.selected = false; });
+      Object.values(state.pcb.vias).forEach(v => { v.selected = false; });
       _selectedWireId = null;
+      _selectedViaId  = null;
       renderer.render();
       break;
     case 'delete':
@@ -791,6 +808,12 @@ window.addEventListener('keydown', e => {
         state.removeWire(_selectedWireId);
         _selectedWireId = null;
         setMsg('Wire deleted');
+      }
+      // Delete selected via
+      if (_selectedViaId) {
+        state.removeVia(_selectedViaId);
+        _selectedViaId = null;
+        setMsg('Via deleted');
       }
       renderer.render();
       break;

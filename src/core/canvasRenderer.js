@@ -259,6 +259,17 @@ export class CanvasRenderer {
     return null;
   }
 
+  /* ── Via hit test ───────────────────────────────────────────────────────── */
+  viaHitTest(wx, wy) {
+    for (const v of Object.values(state.pcb.vias)) {
+      const dx = wx - v.x;
+      const dy = wy - v.y;
+      const r  = (v.padDiameter ?? 1.8) / 2;
+      if (Math.sqrt(dx * dx + dy * dy) <= r) return v;
+    }
+    return null;
+  }
+
   /* ── Wires ──────────────────────────────────────────────────────────────── */
   _drawWires() {
     const { ctx } = this;
@@ -668,9 +679,9 @@ export class CanvasRenderer {
       const s  = this.w2s(v.x, v.y);
       const r  = (v.padDiameter  / 2) * GRID * this.zoom;
       const dr = (v.drillDiameter / 2) * GRID * this.zoom;
-      ctx.fillStyle   = C.via;
-      ctx.strokeStyle = '#ffffff44';
-      ctx.lineWidth   = 1;
+      ctx.fillStyle   = v.selected ? C.selected : C.via;
+      ctx.strokeStyle = v.selected ? C.selected : '#ffffff44';
+      ctx.lineWidth   = v.selected ? 2 : 1;
       ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.fillStyle   = C.bg;
       ctx.beginPath(); ctx.arc(s.x, s.y, Math.max(1, dr), 0, Math.PI * 2); ctx.fill();
