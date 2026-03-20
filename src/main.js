@@ -805,6 +805,27 @@ window.addEventListener('keydown', e => {
   }
 });
 
+// ── Component library drawer ──────────────────────────────────────────────────
+const panelLeft   = document.getElementById('panel-left');
+const backdrop    = document.getElementById('lib-backdrop');
+const btnLibOpen  = document.getElementById('btn-lib-open');
+const btnLibClose = document.getElementById('btn-lib-collapse');
+
+function openLibPanel() {
+  panelLeft?.classList.remove('collapsed');
+  backdrop?.classList.add('visible');
+  btnLibOpen?.classList.add('hidden-toggle');
+}
+function closeLibPanel() {
+  panelLeft?.classList.add('collapsed');
+  backdrop?.classList.remove('visible');
+  btnLibOpen?.classList.remove('hidden-toggle');
+}
+
+btnLibOpen?.addEventListener('click',  openLibPanel);
+btnLibClose?.addEventListener('click', closeLibPanel);
+backdrop?.addEventListener('click',    closeLibPanel);
+
 // ── Toolbar buttons ───────────────────────────────────────────────────────────
 document.getElementById('btn-wire')?.addEventListener('click',    () => setTool('wire'));
 document.getElementById('btn-via')?.addEventListener('click',     () => setTool('via'));
