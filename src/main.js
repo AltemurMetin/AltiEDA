@@ -520,7 +520,7 @@ let _selectedViaId  = null;
 function hitTest(wx, wy) {
   // Give small symbols (R/C/LED/power) a generous hit radius of 4 grid units
   // ICs use a wider box (±5 wide, ±8 tall)
-  const smallParts = new Set(['R_GENERIC','C_GENERIC','LED_GENERIC','PWR_VCC','PWR_GND']);
+  const smallParts = new Set(['R_GENERIC','C_GENERIC','LED_GENERIC','L_GENERIC','PWR_VCC','PWR_GND']);
   for (const comp of Object.values(state.schematic.components)) {
     const hw = smallParts.has(comp.partId) ? 4 : 5;
     const hh = smallParts.has(comp.partId) ? 4 : 8;
@@ -534,9 +534,17 @@ function hitTest(wx, wy) {
 const compActions = document.getElementById('comp-actions');
 let _actionTarget = null;   // currently selected component
 
+const PASSIVE_PARTS = new Set(['R_GENERIC','C_GENERIC','LED_GENERIC','L_GENERIC']);
+
 function showCompActions(comp) {
   _actionTarget = comp;
   document.getElementById('ca-label').textContent = comp.partName;
+  // Show "Edit Value" button only for passives
+  const caValue = document.getElementById('ca-value');
+  if (caValue) {
+    if (PASSIVE_PARTS.has(comp.partId)) caValue.classList.remove('hidden');
+    else caValue.classList.add('hidden');
+  }
   positionCompActions(comp);
   compActions.classList.remove('hidden');
 }
@@ -598,6 +606,92 @@ document.getElementById('ca-delete')?.addEventListener('click',  deleteSelected)
 document.getElementById('ca-rotate')?.addEventListener('click',  rotateSelected);
 document.getElementById('ca-mirror')?.addEventListener('click',  mirrorSelected);
 document.getElementById('ca-replace')?.addEventListener('click', replaceSelected);
+document.getElementById('ca-value')?.addEventListener('click', () => {
+  if (_actionTarget) showValueModal(_actionTarget);
+});
+
+// ── Value edit modal ───────────────────────────────────────────────────────────
+const VALUE_HINTS = {
+  R_GENERIC:   ['1Ω','10Ω','100Ω','1kΩ','10kΩ','100kΩ','1MΩ'],
+  C_GENERIC:   ['1pF','10pF','100pF','1nF','10nF','100nF','1µF','10µF','100µF'],
+  L_GENERIC:   ['1nH','10nH','100nH','1µH','10µH','100µH','1mH','10mH'],
+  LED_GENERIC: ['RED','GREEN','BLUE','WHITE','YELLOW','IR','UV'],
+};
+
+function showValueModal(comp) {
+  let modal = document.getElementById('value-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'value-modal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+      <div class="modal-box" style="min-width:300px;">
+        <div class="modal-hdr">
+          Edit Value
+          <button id="vm-close" class="icon-btn">✕</button>
+        </div>
+        <div style="padding:16px 16px 8px;">
+          <div id="vm-compname" style="color:var(--text2);font-size:11px;margin-bottom:10px;"></div>
+          <input id="vm-input" type="text"
+            style="width:100%;background:var(--bg3);border:1px solid var(--border2);
+                   color:var(--text);font-size:14px;padding:7px 10px;border-radius:3px;
+                   outline:none;font-family:monospace;"/>
+          <div id="vm-hints" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;"></div>
+        </div>
+        <div style="padding:8px 16px 14px;display:flex;gap:8px;justify-content:flex-end;">
+          <button id="vm-cancel" style="padding:5px 14px;background:var(--bg3);border:1px solid var(--border);
+            color:var(--text);border-radius:3px;cursor:pointer;font-size:12px;">Cancel</button>
+          <button id="vm-ok" style="padding:5px 14px;background:var(--accent);border:none;
+            color:#000;border-radius:3px;cursor:pointer;font-size:12px;font-weight:600;">OK</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('vm-close').addEventListener('click',  () => modal.classList.add('hidden'));
+    document.getElementById('vm-cancel').addEventListener('click', () => modal.classList.add('hidden'));
+    modal.addEventListener('click', e => { if (e.target === modal) modal.classList.add('hidden'); });
+    document.getElementById('vm-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('vm-ok').click();
+      if (e.key === 'Escape') modal.classList.add('hidden');
+    });
+    document.getElementById('vm-ok').addEventListener('click', () => {
+      const val = document.getElementById('vm-input').value.trim();
+      if (modal._targetComp && val !== '') {
+        modal._targetComp.value = val;
+        renderer.render();
+        setMsg(`Value set to ${val}`);
+      }
+      modal.classList.add('hidden');
+    });
+  }
+
+  modal._targetComp = comp;
+  document.getElementById('vm-compname').textContent = `${comp.partName}  ·  current: ${comp.value || '—'}`;
+  const input = document.getElementById('vm-input');
+  input.value = comp.value || '';
+
+  // Render hint chips
+  const hintsEl = document.getElementById('vm-hints');
+  hintsEl.innerHTML = '';
+  (VALUE_HINTS[comp.partId] ?? []).forEach(h => {
+    const chip = document.createElement('button');
+    chip.textContent = h;
+    chip.style.cssText = 'padding:3px 8px;background:var(--bg4);border:1px solid var(--border);' +
+      'color:var(--text2);border-radius:3px;cursor:pointer;font-size:11px;font-family:monospace;';
+    chip.addEventListener('click', () => { input.value = h; input.focus(); });
+    hintsEl.appendChild(chip);
+  });
+
+  modal.classList.remove('hidden');
+  requestAnimationFrame(() => { input.select(); input.focus(); });
+}
+
+// Double-click on canvas → open value modal for passives
+canvas.addEventListener('dblclick', e => {
+  const rect  = canvas.getBoundingClientRect();
+  const world = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const hit   = hitTest(world.x, world.y);
+  if (hit && PASSIVE_PARTS.has(hit.partId)) showValueModal(hit);
+});
 
 // ── Context menu ───────────────────────────────────────────────────────────────
 const ctxMenu = document.getElementById('ctx-menu');

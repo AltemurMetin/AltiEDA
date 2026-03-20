@@ -44,6 +44,18 @@ export const COMPONENT_LIBRARY = [
       P(2, 'K',  PinType.PASSIVE,  24, 0),
     ],
   },
+  {
+    partId:       'L_GENERIC',
+    partName:     'Inductor',
+    category:     'Passive',
+    defaultValue: '10uH',
+    footprintId:  'L_0805',
+    spiceModel:   { type: 'L', directive: null },
+    pins: [
+      P(1, 'P1', PinType.PASSIVE, -30, 0),
+      P(2, 'P2', PinType.PASSIVE,  30, 0),
+    ],
+  },
 
   // ── Power symbols ─────────────────────────────────────────────────────────
   {

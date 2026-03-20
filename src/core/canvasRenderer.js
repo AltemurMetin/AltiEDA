@@ -32,6 +32,7 @@ const THEMES = {
     symLED:       '#8b1a00',
     symVCC:       '#8b0000',
     symGND:       '#3d1400',
+    symL:         '#8b1a00',
     nets: {
       [NetClass.GND]:    '#3d1400',
       [NetClass.POWER]:  '#8b0000',
@@ -76,6 +77,7 @@ const THEMES = {
       [NetClass.PWM]:    '#dcdcaa',
       [NetClass.SIGNAL]: '#555555',
     },
+    symL: '#4ec9b0',
   },
 };
 
@@ -364,6 +366,7 @@ export class CanvasRenderer {
       case 'R_GENERIC':  this._symResistor(comp);  break;
       case 'C_GENERIC':  this._symCapacitor(comp);  break;
       case 'LED_GENERIC':this._symLED(comp);        break;
+      case 'L_GENERIC':  this._symInductor(comp);  break;
       case 'PWR_VCC':    this._symVCC(comp);        break;
       case 'PWR_GND':    this._symGND(comp);        break;
       default:           this._symIC(comp);         break;
@@ -498,6 +501,49 @@ export class CanvasRenderer {
     this._pinDot(-(r + lead), 0, comp.selected);
     this._pinDot(r + lead, 0, comp.selected);
     this._symLabel(comp, 0, -(r + 10 * z), 0, r + 8 * z, z);
+  }
+
+  /* Inductor – 4 upward semicircle bumps */
+  _symInductor(comp) {
+    const { ctx } = this;
+    const z        = this.zoom;
+    const lw       = Math.max(1.2, 1.5 * z);
+    const numBumps = 4;
+    const r        = 6 * z;          // bump radius
+    const halfBody = numBumps * r;   // 24*z
+    const lead     = 6 * z;          // 30-24=6
+
+    const col = comp.selected ? C.selected : C.symL;
+    ctx.strokeStyle = col;
+    ctx.lineWidth   = lw;
+    ctx.lineCap  = 'round';
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([]);
+
+    // Left lead
+    ctx.beginPath();
+    ctx.moveTo(-(halfBody + lead), 0); ctx.lineTo(-halfBody, 0);
+    ctx.stroke();
+    // Right lead
+    ctx.beginPath();
+    ctx.moveTo(halfBody, 0); ctx.lineTo(halfBody + lead, 0);
+    ctx.stroke();
+
+    // 4 upward bumps (counterclockwise = top half in canvas coords)
+    ctx.beginPath();
+    ctx.moveTo(-halfBody, 0);
+    for (let i = 0; i < numBumps; i++) {
+      const cx = -halfBody + r + i * 2 * r;
+      ctx.arc(cx, 0, r, Math.PI, 0, true);
+    }
+    ctx.stroke();
+
+    // Pin dots
+    this._pinDot(-(halfBody + lead), 0, comp.selected);
+    this._pinDot(halfBody + lead, 0, comp.selected);
+
+    // Labels
+    this._symLabel(comp, 0, -(r + 8 * z), 0, r + 6 * z, z);
   }
 
   /* VCC power flag */
