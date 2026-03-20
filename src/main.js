@@ -8,6 +8,7 @@ import { createComponent }   from './core/dataModels.js';
 import { generateSuggestions, acceptAllSuggestions } from './tools/aiPinMatcher.js';
 import { WireTool, placeVia, placeProbeTool, getProbeNetName } from './tools/routingTools.js';
 import { generateNetlist, switchToPCBMode, switchToSchematicMode } from './core/netlistGenerator.js';
+import { applyTheme } from './core/canvasRenderer.js';
 import { runDRC, renderDRCPanel }          from './tools/drcEngine.js';
 import { exportManufacturingPackage }      from './export/exportPackager.js';
 import { onComponentSelect, initPanel, hidePanel } from './ui/contextualPanel.js';
@@ -888,10 +889,14 @@ document.querySelectorAll('[data-mode]').forEach(btn => {
     const mode = btn.dataset.mode;
     const three = document.getElementById('three-container');
 
+    document.documentElement.dataset.mode = mode;
+
     if (mode === 'schematic') {
+      applyTheme('schematic');
       switchToSchematicMode(renderer);
       toggle2D3DView('2d', canvas, three);
     } else if (mode === 'pcb') {
+      applyTheme('pcb');
       toggle2D3DView('2d', canvas, three);
       switchToPCBMode(renderer);
     } else if (mode === '3d') {
@@ -960,6 +965,8 @@ function setMsg(msg) {
 }
 
 // ── Initial render ────────────────────────────────────────────────────────────
+document.documentElement.dataset.mode = 'schematic';
+applyTheme('schematic');
 renderer.render();
 updateZoomDisplay();
 setMsg('Ready — drag components from the sidebar onto the canvas to begin');

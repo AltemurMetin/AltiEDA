@@ -740,3 +740,195 @@ body {
 ::-webkit-scrollbar-track { background: var(--bg2); }
 ::-webkit-scrollbar-thumb { background: var(--bg5); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+/* ════════════════════════════════
+   SCHEMATIC MODE — Amber warm theme
+════════════════════════════════ */
+:root[data-mode="schematic"] {
+  --bg:        #0e0900;
+  --bg2:       #140e00;
+  --bg3:       #1c1500;
+  --bg4:       #261c00;
+  --bg5:       #302200;
+  --border:    #3d2c00;
+  --border2:   #574010;
+
+  --text:      #e8c870;
+  --text2:     #c8a050;
+  --text3:     #907038;
+  --text-dim:  #604820;
+
+  --accent:    #d48a0c;
+  --accent2:   #f5c842;
+  --accent3:   #ff8c00;
+  --yellow:    #ffd060;
+  --green:     #8ab820;
+  --red:       #ff5533;
+  --warn:      #ffcc02;
+  --purple:    #e08040;
+}
+
+:root[data-mode="schematic"] #menubar,
+:root[data-mode="schematic"] #toolbar,
+:root[data-mode="schematic"] #statusbar {
+  background: var(--bg2);
+  border-color: var(--border);
+}
+
+:root[data-mode="schematic"] .menubar-title {
+  color: var(--accent);
+}
+
+:root[data-mode="schematic"] .tb-mode.active {
+  color: var(--accent);
+  background: rgba(212,138,12,0.15);
+  border-color: rgba(212,138,12,0.4);
+}
+
+:root[data-mode="schematic"] .tb-btn.active {
+  background: rgba(245,200,66,0.15);
+  color: var(--accent2);
+  border-color: var(--accent2);
+}
+
+:root[data-mode="schematic"] #tool-indicator {
+  background: rgba(212,138,12,0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+:root[data-mode="schematic"] #canvas-wrap {
+  background: #0e0900;
+}
+
+:root[data-mode="schematic"] #panel-left,
+:root[data-mode="schematic"] #panel-right {
+  background: var(--bg2);
+  border-color: var(--border);
+}
+
+:root[data-mode="schematic"] .panel-header {
+  background: var(--bg3);
+  border-color: var(--border);
+}
+
+:root[data-mode="schematic"] .lib-search-wrap {
+  background: var(--bg);
+  border-color: var(--border);
+}
+
+:root[data-mode="schematic"] .comp-item:hover {
+  background: var(--bg4);
+  border-color: var(--border);
+}
+
+:root[data-mode="schematic"] #comp-actions {
+  background: var(--bg3);
+  border-color: var(--accent);
+}
+
+:root[data-mode="schematic"] #ca-label { color: var(--accent); }
+
+:root[data-mode="schematic"] #ctx-menu {
+  background: var(--bg3);
+  border-color: var(--border2);
+}
+
+:root[data-mode="schematic"] .ctx-title { color: var(--accent); }
+:root[data-mode="schematic"] .ctx-item:hover { background: var(--accent); color: #000; }
+
+:root[data-mode="schematic"] .tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+:root[data-mode="schematic"] #btn-lib-open {
+  background: var(--bg3);
+  border-color: var(--border2);
+  color: var(--text2);
+}
+:root[data-mode="schematic"] #btn-lib-open:hover { color: var(--accent); }
+
+/* ════════════════════════════════
+   PCB MODE — Pure black theme
+════════════════════════════════ */
+:root[data-mode="pcb"] {
+  --bg:        #050505;
+  --bg2:       #0a0a0a;
+  --bg3:       #111111;
+  --bg4:       #181818;
+  --bg5:       #202020;
+  --border:    #282828;
+  --border2:   #333333;
+
+  --text:      #c0c0c0;
+  --text2:     #909090;
+  --text3:     #606060;
+  --text-dim:  #404040;
+
+  --accent:    #00bcd4;
+  --accent2:   #26c6da;
+  --accent3:   #ff7043;
+  --yellow:    #ffee58;
+  --green:     #66bb6a;
+  --red:       #ef5350;
+  --warn:      #ffa726;
+  --purple:    #ab47bc;
+}
+
+:root[data-mode="pcb"] #menubar,
+:root[data-mode="pcb"] #toolbar,
+:root[data-mode="pcb"] #statusbar {
+  background: var(--bg2);
+  border-color: var(--border);
+}
+
+:root[data-mode="pcb"] .menubar-title {
+  color: var(--accent);
+}
+
+:root[data-mode="pcb"] .tb-mode.active {
+  color: var(--accent);
+  background: rgba(0,188,212,0.12);
+  border-color: rgba(0,188,212,0.3);
+}
+
+:root[data-mode="pcb"] .tb-btn.active {
+  background: rgba(38,198,218,0.15);
+  color: var(--accent2);
+  border-color: var(--accent2);
+}
+
+:root[data-mode="pcb"] #tool-indicator {
+  background: rgba(0,188,212,0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+:root[data-mode="pcb"] #canvas-wrap {
+  background: #050505;
+}
+
+:root[data-mode="pcb"] #panel-left,
+:root[data-mode="pcb"] #panel-right {
+  background: var(--bg2);
+  border-color: var(--border);
+}
+
+:root[data-mode="pcb"] .panel-header {
+  background: var(--bg3);
+  border-color: var(--border);
+}
+
+:root[data-mode="pcb"] #comp-actions {
+  background: var(--bg3);
+  border-color: var(--accent);
+}
+:root[data-mode="pcb"] #ca-label { color: var(--accent); }
+
+:root[data-mode="pcb"] #ctx-menu {
+  background: var(--bg3);
+  border-color: var(--border2);
+}
+:root[data-mode="pcb"] .ctx-title { color: var(--accent); }
+:root[data-mode="pcb"] .ctx-item:hover { background: var(--accent2); color: #000; }

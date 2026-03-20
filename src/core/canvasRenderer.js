@@ -5,44 +5,87 @@
 import { state } from './schematicState.js';
 import { NetClass } from './dataModels.js';
 
-// ── Colors ────────────────────────────────────────────────────────────────────
-const C = {
-  bg:           '#1a1a1a',
-  gridDot:      '#3a3a3a',
-  gridDotMajor: '#4a4a4a',
-  wire:         '#4ec9b0',
-  wireHover:    '#7eeedd',
-  junction:     '#4ec9b0',
-  pin:          '#569cd6',
-  pinUnconn:    '#888888',
-  compBody:     '#252526',
-  compBorder:   '#569cd6',
-  compText:     '#dcdcaa',
-  compValue:    '#ce9178',
-  selected:     '#ffcc02',
-  ratsnest:     '#ff8c00',
-  drcErr:       '#f44747',
-  probe:        '#c586c0',
-  via:          '#c8963e',
-  traceF:       '#c8963e',
-  traceB:       '#3a8dc8',
-  // schematic symbols
-  symR:         '#4ec9b0',
-  symC:         '#4ec9b0',
-  symLED:       '#4ec9b0',
-  symVCC:       '#f44747',
-  symGND:       '#6a9955',
-  // net classes
-  nets: {
-    [NetClass.GND]:    '#6a9955',
-    [NetClass.POWER]:  '#f44747',
-    [NetClass.I2C]:    '#569cd6',
-    [NetClass.SPI]:    '#c586c0',
-    [NetClass.UART]:   '#ce9178',
-    [NetClass.PWM]:    '#dcdcaa',
-    [NetClass.SIGNAL]: '#888888',
+// ── Color themes ──────────────────────────────────────────────────────────────
+const THEMES = {
+  schematic: {
+    bg:           '#140e00',
+    gridDot:      '#2a1e00',
+    gridDotMajor: '#3d2c00',
+    wire:         '#d48a0c',
+    wireHover:    '#f5c842',
+    junction:     '#f0a800',
+    pin:          '#c8920a',
+    pinUnconn:    '#7a5c20',
+    compBody:     '#1c1500',
+    compBorder:   '#b87c10',
+    compText:     '#e8c870',
+    compValue:    '#d4a040',
+    selected:     '#ffaa00',
+    ratsnest:     '#ff8c00',
+    drcErr:       '#ff4444',
+    probe:        '#c586c0',
+    via:          '#d4940a',
+    traceF:       '#c8963e',
+    traceB:       '#3a8dc8',
+    symR:         '#c89830',
+    symC:         '#c89830',
+    symLED:       '#e8c040',
+    symVCC:       '#ff6b00',
+    symGND:       '#a07828',
+    nets: {
+      [NetClass.GND]:    '#a07828',
+      [NetClass.POWER]:  '#ff6b00',
+      [NetClass.I2C]:    '#c8920a',
+      [NetClass.SPI]:    '#c586c0',
+      [NetClass.UART]:   '#d4a040',
+      [NetClass.PWM]:    '#e8c870',
+      [NetClass.SIGNAL]: '#8a6830',
+    },
+  },
+  pcb: {
+    bg:           '#050505',
+    gridDot:      '#181818',
+    gridDotMajor: '#242424',
+    wire:         '#4ec9b0',
+    wireHover:    '#7eeedd',
+    junction:     '#4ec9b0',
+    pin:          '#569cd6',
+    pinUnconn:    '#555555',
+    compBody:     '#0d0d0d',
+    compBorder:   '#2a6496',
+    compText:     '#888888',
+    compValue:    '#666666',
+    selected:     '#ffcc02',
+    ratsnest:     '#ff8c00',
+    drcErr:       '#f44747',
+    probe:        '#c586c0',
+    via:          '#c8963e',
+    traceF:       '#c8963e',
+    traceB:       '#3a8dc8',
+    symR:         '#4ec9b0',
+    symC:         '#4ec9b0',
+    symLED:       '#4ec9b0',
+    symVCC:       '#f44747',
+    symGND:       '#6a9955',
+    nets: {
+      [NetClass.GND]:    '#6a9955',
+      [NetClass.POWER]:  '#f44747',
+      [NetClass.I2C]:    '#569cd6',
+      [NetClass.SPI]:    '#c586c0',
+      [NetClass.UART]:   '#ce9178',
+      [NetClass.PWM]:    '#dcdcaa',
+      [NetClass.SIGNAL]: '#555555',
+    },
   },
 };
+
+// Active color set (mutable, shared with all drawing code)
+const C = { ...THEMES.schematic };
+
+export function applyTheme(mode) {
+  const t = THEMES[mode] ?? THEMES.schematic;
+  Object.assign(C, t);
+}
 
 const GRID = 20;       // px per grid unit at zoom=1 (≈ 2.54mm)
 const PIN_R = 3;
