@@ -155,7 +155,7 @@ export class WireTool {
       for (const pin of comp.pins) {
         const px = comp.x + pin.offsetX / GRID_PX;
         const py = comp.y + pin.offsetY / GRID_PX;
-        if (Math.abs(px - x) < 1 && Math.abs(py - y) < 1) {
+        if (Math.abs(px - x) < 0.1 && Math.abs(py - y) < 0.1) {
           pin.netId = netId;
           // Record pinRef on net
           const net = state.schematic.nets[netId];
@@ -172,16 +172,16 @@ export class WireTool {
   _netAtPoint(x, y) {
     for (const comp of Object.values(state.schematic.components)) {
       for (const pin of comp.pins) {
-        if (Math.abs(comp.x + pin.offsetX / GRID_PX - x) < 0.5 &&
-            Math.abs(comp.y + pin.offsetY / GRID_PX - y) < 0.5) {
+        if (Math.abs(comp.x + pin.offsetX / GRID_PX - x) < 0.1 &&
+            Math.abs(comp.y + pin.offsetY / GRID_PX - y) < 0.1) {
           return pin.netId;
         }
       }
     }
     // Check wire endpoints
     for (const wire of Object.values(state.schematic.wires)) {
-      if ((Math.abs(wire.x1 - x) < 1 && Math.abs(wire.y1 - y) < 1) ||
-          (Math.abs(wire.x2 - x) < 1 && Math.abs(wire.y2 - y) < 1)) {
+      if ((Math.abs(wire.x1 - x) < 0.1 && Math.abs(wire.y1 - y) < 0.1) ||
+          (Math.abs(wire.x2 - x) < 0.1 && Math.abs(wire.y2 - y) < 0.1)) {
         return wire.netId;
       }
     }
@@ -299,8 +299,8 @@ function _findNetAtPoint(x, y) {
   }
   for (const comp of Object.values(state.schematic.components)) {
     for (const pin of comp.pins) {
-      if (Math.abs(comp.x + pin.offsetX / GRID_PX - x) < 0.5 &&
-          Math.abs(comp.y + pin.offsetY / GRID_PX - y) < 0.5) {
+      if (Math.abs(comp.x + pin.offsetX / GRID_PX - x) < 0.1 &&
+          Math.abs(comp.y + pin.offsetY / GRID_PX - y) < 0.1) {
         return pin.netId;
       }
     }
