@@ -217,21 +217,83 @@ body {
   display: flex;
   flex: 1;
   overflow: hidden;
+  position: relative;
 }
 
-/* ── Left Panel ── */
+/* ── Left Panel – slide-in drawer ── */
 #panel-left {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
   width: var(--panel-l-w);
+  z-index: 40;
   background: var(--bg2);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
   overflow: hidden;
-  transition: width var(--transition);
+  transform: translateX(0);
+  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1),
+              box-shadow 0.22s;
+  box-shadow: 4px 0 20px rgba(0,0,0,0.35);
+}
+#panel-left.collapsed {
+  transform: translateX(calc(-1 * var(--panel-l-w)));
+  box-shadow: none;
+  pointer-events: none;
 }
 
-#panel-left.collapsed { width: 0; }
+/* Backdrop when drawer open */
+#lib-backdrop {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 39;
+}
+#lib-backdrop.visible { display: block; }
+
+/* Toggle button — left edge of canvas-wrap */
+#btn-lib-open {
+  position: absolute;
+  left: 0; top: 50%;
+  transform: translateY(-50%) translateX(0);
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  padding: 10px 7px;
+  color: var(--text2);
+  cursor: pointer;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.3);
+  transition: background var(--transition), color var(--transition),
+              opacity 0.18s ease, transform 0.22s cubic-bezier(0.4,0,0.2,1);
+}
+#btn-lib-open svg   { width: 16px; height: 16px; }
+#btn-lib-open span  {
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+#btn-lib-open:hover { background: var(--bg5); color: var(--accent); }
+
+/* Hide toggle when panel is open */
+#btn-lib-open.hidden-toggle {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%) translateX(-12px);
+}
+
+@media (pointer: coarse) {
+  #btn-lib-open { padding: 14px 10px; }
+  #btn-lib-open svg { width: 20px; height: 20px; }
+}
 
 /* ── Right Panel ── */
 #panel-right {
