@@ -8,9 +8,9 @@ import { NetClass } from './dataModels.js';
 // ── Color themes ──────────────────────────────────────────────────────────────
 const THEMES = {
   schematic: {
-    bg:           '#fdf6e3',
-    gridDot:      '#d4a855',
-    gridDotMajor: '#b8782a',
+    bg:           '#141008',
+    gridDot:      '#3a2800',
+    gridDotMajor: '#6b4a00',
     wire:         '#d48a0c',
     wireHover:    '#f5c842',
     junction:     '#f0a800',
@@ -18,8 +18,8 @@ const THEMES = {
     pinUnconn:    '#7a5c20',
     compBody:     '#1c1500',
     compBorder:   '#b87c10',
-    compText:     '#3a2000',
-    compValue:    '#6b3d00',
+    compText:     '#e8c870',
+    compValue:    '#d4a040',
     selected:     '#ffaa00',
     ratsnest:     '#ff8c00',
     drcErr:       '#ff4444',
