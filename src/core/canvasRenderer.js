@@ -8,38 +8,38 @@ import { NetClass } from './dataModels.js';
 // ── Color themes ──────────────────────────────────────────────────────────────
 const THEMES = {
   schematic: {
-    bg:           '#000000',
-    gridDot:      '#1c1c1c',
-    gridDotMajor: '#383838',
-    wire:         '#00cc44',
-    wireHover:    '#44ff88',
-    junction:     '#00ff55',
-    pin:          '#00aaff',
-    pinUnconn:    '#ff4444',
-    compBody:     '#000000',
-    compBorder:   '#00aaff',
-    compText:     '#ffffff',
-    compValue:    '#ffcc00',
-    selected:     '#ffff00',
-    ratsnest:     '#ff8800',
-    drcErr:       '#ff3333',
-    probe:        '#cc66ff',
-    via:          '#ff8800',
-    traceF:       '#cc3300',
-    traceB:       '#0055cc',
-    symR:         '#00aaff',
-    symC:         '#00aaff',
-    symLED:       '#ffcc00',
-    symVCC:       '#ff4444',
-    symGND:       '#aaaaaa',
+    bg:           '#c8c4b8',
+    gridDot:      '#aaa898',
+    gridDotMajor: '#8a8678',
+    wire:         '#8b1a00',
+    wireHover:    '#cc3300',
+    junction:     '#8b1a00',
+    pin:          '#8b1a00',
+    pinUnconn:    '#cc4400',
+    compBody:     '#c8c4b8',
+    compBorder:   '#8b1a00',
+    compText:     '#1a0a00',
+    compValue:    '#3d1400',
+    selected:     '#0055cc',
+    ratsnest:     '#cc6600',
+    drcErr:       '#ff0000',
+    probe:        '#6600cc',
+    via:          '#884400',
+    traceF:       '#8b1a00',
+    traceB:       '#004488',
+    symR:         '#8b1a00',
+    symC:         '#8b1a00',
+    symLED:       '#8b1a00',
+    symVCC:       '#8b0000',
+    symGND:       '#3d1400',
     nets: {
-      [NetClass.GND]:    '#aaaaaa',
-      [NetClass.POWER]:  '#ff4444',
-      [NetClass.I2C]:    '#00aaff',
-      [NetClass.SPI]:    '#cc66ff',
-      [NetClass.UART]:   '#ffaa00',
-      [NetClass.PWM]:    '#00cc44',
-      [NetClass.SIGNAL]: '#00cc44',
+      [NetClass.GND]:    '#3d1400',
+      [NetClass.POWER]:  '#8b0000',
+      [NetClass.I2C]:    '#8b1a00',
+      [NetClass.SPI]:    '#6600cc',
+      [NetClass.UART]:   '#884400',
+      [NetClass.PWM]:    '#8b1a00',
+      [NetClass.SIGNAL]: '#8b1a00',
     },
   },
   pcb: {
@@ -200,29 +200,32 @@ export class CanvasRenderer {
     const x0 = ((ox % step) + step) % step - step;
     const y0 = ((oy % step) + step) % step - step;
 
-    // Major grid: thin cross-lines (Proteus style)
+    // Full line grid — her minor adımda tam çizgi (Proteus ISIS stili)
+    ctx.setLineDash([]);
+    // Minor lines
+    ctx.strokeStyle = C.gridDot;
+    ctx.lineWidth   = 0.4;
+    for (let x = x0; x < canvas.width + step; x += step) {
+      const isMajorX = Math.abs(Math.round((x - ox) / step) % major) === 0;
+      if (isMajorX) continue;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+    }
+    for (let y = y0; y < canvas.height + step; y += step) {
+      const isMajorY = Math.abs(Math.round((y - oy) / step) % major) === 0;
+      if (isMajorY) continue;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    }
+    // Major lines (darker, slightly thicker)
+    ctx.strokeStyle = C.gridDotMajor;
+    ctx.lineWidth   = 0.7;
     const majorStep = step * major;
     const mx0 = ((ox % majorStep) + majorStep) % majorStep - majorStep;
     const my0 = ((oy % majorStep) + majorStep) % majorStep - majorStep;
-    ctx.strokeStyle = C.gridDotMajor;
-    ctx.lineWidth   = 0.5;
-    ctx.setLineDash([]);
     for (let x = mx0; x < canvas.width + majorStep; x += majorStep) {
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
     }
     for (let y = my0; y < canvas.height + majorStep; y += majorStep) {
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-    }
-
-    // Minor grid: small dots
-    for (let x = x0; x < canvas.width + step; x += step) {
-      for (let y = y0; y < canvas.height + step; y += step) {
-        const isMajorX = Math.abs(Math.round((x - ox) / step) % major) === 0;
-        const isMajorY = Math.abs(Math.round((y - oy) / step) % major) === 0;
-        if (isMajorX && isMajorY) continue; // major intersection already drawn by lines
-        ctx.fillStyle = C.gridDot;
-        ctx.fillRect(x - 0.8, y - 0.8, 1.6, 1.6);
-      }
     }
   }
 
