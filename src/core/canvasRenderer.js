@@ -1056,6 +1056,18 @@ export class CanvasRenderer {
     const outline = state.pcb.boardOutline;
     const board   = state.pcb.board;
 
+    // Auto-size board from components if still at default
+    if (board && board.x === 0 && board.y === 0 && board.width === 100 && board.height === 80) {
+      const comps = Object.values(state.pcb.components);
+      if (comps.length > 0) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const c of comps) { minX = Math.min(minX, c.x); minY = Math.min(minY, c.y); maxX = Math.max(maxX, c.x); maxY = Math.max(maxY, c.y); }
+        const pad = 8;
+        board.x = minX - pad; board.y = minY - pad;
+        board.width = (maxX - minX) + pad * 2; board.height = (maxY - minY) + pad * 2;
+      }
+    }
+
     // Use explicit outline if set, otherwise derive from board rect
     let points;
     if (outline && outline.length >= 2) {
@@ -1071,8 +1083,8 @@ export class CanvasRenderer {
       return;
     }
 
-    // Board fill — subtle dark PCB green background
-    ctx.fillStyle = '#0a1a0a';
+    // Board fill — dark green PCB substrate
+    ctx.fillStyle = '#0b2e0b';
     ctx.beginPath();
     const f0 = this.w2s(points[0].x, points[0].y);
     ctx.moveTo(f0.x, f0.y);
@@ -1083,10 +1095,10 @@ export class CanvasRenderer {
     ctx.closePath();
     ctx.fill();
 
-    // Board edge — golden yellow dashed border
+    // Board edge — solid bright yellow border
     ctx.strokeStyle = '#ffcc00';
-    ctx.lineWidth   = Math.max(1.5, 2 * this.zoom);
-    ctx.setLineDash([6, 4]);
+    ctx.lineWidth   = Math.max(2, 3 * this.zoom);
+    ctx.setLineDash([]);
     ctx.beginPath();
     const p0 = this.w2s(points[0].x, points[0].y);
     ctx.moveTo(p0.x, p0.y);
@@ -1096,23 +1108,34 @@ export class CanvasRenderer {
     }
     ctx.closePath();
     ctx.stroke();
-    ctx.setLineDash([]);
+
+    // Corner markers for extra visibility
+    const cornerSize = Math.max(6, 10 * this.zoom);
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineWidth   = Math.max(2.5, 3.5 * this.zoom);
+    for (const pt of points) {
+      const sp = this.w2s(pt.x, pt.y);
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, cornerSize, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     // Board dimension labels
-    if (board && this.zoom > 0.3) {
-      const bw = board.width.toFixed(1);
-      const bh = board.height.toFixed(1);
-      ctx.fillStyle    = '#ffcc0088';
-      ctx.font         = `${Math.max(9, 10 * this.zoom)}px monospace`;
+    if (board && this.zoom > 0.2) {
+      const bwMM = (board.width * 2.54).toFixed(1);
+      const bhMM = (board.height * 2.54).toFixed(1);
+      ctx.fillStyle    = '#ffcc00cc';
+      ctx.font         = `bold ${Math.max(10, 12 * this.zoom)}px monospace`;
       ctx.textAlign    = 'center';
-      ctx.textBaseline = 'top';
+      ctx.textBaseline = 'bottom';
       const topMid = this.w2s(board.x + board.width / 2, board.y);
-      ctx.fillText(`${bw} mm`, topMid.x, topMid.y - 16 * this.zoom);
+      ctx.fillText(`${bwMM} mm`, topMid.x, topMid.y - 8);
       ctx.save();
-      ctx.translate(this.w2s(board.x, board.y + board.height / 2).x - 16 * this.zoom,
-                    this.w2s(board.x, board.y + board.height / 2).y);
+      const leftMid = this.w2s(board.x, board.y + board.height / 2);
+      ctx.translate(leftMid.x - 12, leftMid.y);
       ctx.rotate(-Math.PI / 2);
-      ctx.fillText(`${bh} mm`, 0, 0);
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`${bhMM} mm`, 0, 0);
       ctx.restore();
       ctx.textBaseline = 'alphabetic';
     }
