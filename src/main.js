@@ -191,6 +191,19 @@ canvas.addEventListener('drop', e => {
 // ── Shared helpers ────────────────────────────────────────────────────────────
 const mm = (v) => (v * 2.54).toFixed(2);
 
+/** Parse component value string (e.g. "10kΩ" → 10000, "5.1V" → 5.1) */
+function parseComponentValue(s) {
+  if (!s) return 0;
+  const m = s.trim().match(/^([+-]?[\d.eE+-]+)\s*([a-zA-ZΩµ]*)/);
+  if (!m) return 0;
+  let v = parseFloat(m[1]);
+  let suffix = m[2].replace(/[ΩFHVAohm]/gi, '').replace('µ', 'u').toLowerCase();
+  const mults = { 'f':1e-15, 'p':1e-12, 'n':1e-9, 'u':1e-6,
+                  'm':1e-3, 'k':1e3, 'meg':1e6, 'g':1e9, 't':1e12 };
+  if (mults[suffix]) v *= mults[suffix];
+  return v || 0;
+}
+
 function updateCoords(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
   const w    = renderer.screenToWorld(clientX - rect.left, clientY - rect.top);
@@ -577,7 +590,15 @@ function hitTest(wx, wy) {
 const compActions = document.getElementById('comp-actions');
 let _actionTarget = null;   // currently selected component
 
-const PASSIVE_PARTS = new Set(['R_GENERIC','C_GENERIC','LED_GENERIC','L_GENERIC']);
+const EDITABLE_PARTS = new Set([
+  'R_GENERIC','C_GENERIC','LED_GENERIC','L_GENERIC',
+  'D_1N4007','D_ZENER','D_SCHOTTKY',
+  'Q_NPN_BC547','Q_PNP_BC557','Q_NMOS_2N7000',
+  'PWR_VCC','PWR_GND','LM7805','LM317','AMS1117_3V3',
+  'LDR','NTC_10K','BUZZER','CRYSTAL',
+]);
+// Keep backward compat alias
+const PASSIVE_PARTS = EDITABLE_PARTS;
 
 function showCompActions(comp) {
   _actionTarget = comp;
@@ -658,10 +679,17 @@ document.getElementById('ca-value')?.addEventListener('click', () => {
 
 // ── Value edit modal ───────────────────────────────────────────────────────────
 const VALUE_HINTS = {
-  R_GENERIC:   ['1Ω','10Ω','100Ω','1kΩ','10kΩ','100kΩ','1MΩ'],
-  C_GENERIC:   ['1pF','10pF','100pF','1nF','10nF','100nF','1µF','10µF','100µF'],
-  L_GENERIC:   ['1nH','10nH','100nH','1µH','10µH','100µH','1mH','10mH'],
-  LED_GENERIC: ['RED','GREEN','BLUE','WHITE','YELLOW','IR','UV'],
+  R_GENERIC:     ['1Ω','10Ω','100Ω','220Ω','470Ω','1kΩ','4.7kΩ','10kΩ','47kΩ','100kΩ','1MΩ'],
+  C_GENERIC:     ['1pF','10pF','100pF','1nF','10nF','100nF','1µF','10µF','100µF','1000µF'],
+  L_GENERIC:     ['1nH','10nH','100nH','1µH','10µH','100µH','1mH','10mH','100mH'],
+  LED_GENERIC:   ['RED','GREEN','BLUE','WHITE','YELLOW','IR','UV'],
+  D_ZENER:       ['3.3V','4.7V','5.1V','5.6V','6.2V','9.1V','12V','15V','24V'],
+  PWR_VCC:       ['1.8V','2.5V','3.3V','5V','9V','12V','24V','48V'],
+  PWR_GND:       ['0V'],
+  LDR:           ['1kΩ','5kΩ','10kΩ','50kΩ','100kΩ'],
+  NTC_10K:       ['1kΩ','5kΩ','10kΩ','47kΩ','100kΩ'],
+  CRYSTAL:       ['4MHz','8MHz','12MHz','16MHz','20MHz','25MHz','32.768kHz'],
+  BUZZER:        ['3.3V','5V','9V','12V'],
 };
 
 function showValueModal(comp) {
@@ -703,7 +731,27 @@ function showValueModal(comp) {
       const val = document.getElementById('vm-input').value.trim();
       if (modal._targetComp && val !== '') {
         state.pushUndo();
-        modal._targetComp.value = val;
+        const comp = modal._targetComp;
+        comp.value = val;
+
+        // Update SPICE model directive when value changes
+        if (comp.spiceModel) {
+          const numVal = parseComponentValue(val);
+          switch (comp.partId) {
+            case 'PWR_VCC':
+              comp.spiceModel.directive = `DC ${numVal}`;
+              break;
+            case 'D_ZENER':
+              comp.spiceModel.directive = `.model DZENER D(Is=1e-10 BV=${numVal})`;
+              break;
+            case 'LM7805':
+            case 'LM317':
+            case 'AMS1117_3V3':
+              // Voltage regulator output voltage hint
+              break;
+          }
+        }
+
         renderer.render();
         setMsg(`Value set to ${val}`);
       }

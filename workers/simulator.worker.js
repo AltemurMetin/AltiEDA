@@ -99,11 +99,13 @@ function parseNetlist(spice) {
 function parseValue(s) {
   if (!s) return 0;
   s = s.trim();
-  const m = s.match(/^([+-]?[\d.eE+-]+)\s*([a-zA-ZΩµ]*)/);
+  const m = s.match(/^([+-]?[\d.eE+-]+)\s*([a-zA-ZΩΩµ]*)/);
   if (!m) return 0;
   let v = parseFloat(m[1]);
-  const suffix = m[2].toLowerCase();
-  const mults = { 'f':1e-15, 'p':1e-12, 'n':1e-9, 'u':1e-6, 'µ':1e-6,
+  // Strip unit suffixes (Ω, F, H, V, A) to isolate multiplier prefix
+  let suffix = m[2].replace(/[ΩFHVAohm]/gi, '');
+  suffix = suffix.replace('µ', 'u').toLowerCase();
+  const mults = { 'f':1e-15, 'p':1e-12, 'n':1e-9, 'u':1e-6,
                   'm':1e-3, 'k':1e3, 'meg':1e6, 'g':1e9, 't':1e12 };
   if (mults[suffix]) v *= mults[suffix];
   return v || 0;
