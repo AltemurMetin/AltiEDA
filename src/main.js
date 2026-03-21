@@ -110,14 +110,54 @@ function buildSidebar() {
 }
 
 function compIcon(partId) {
+  const s = '#4ec9b0';  // standard stroke color
   const icons = {
-    R_GENERIC:  `<svg viewBox="-40 -12 80 24" stroke="#4ec9b0" fill="none" stroke-width="2" stroke-linecap="round"><line x1="-36" y1="0" x2="-20" y2="0"/><polyline points="-20,0 -15,-8 -5,8 5,-8 15,8 20,0"/><line x1="20" y1="0" x2="36" y2="0"/></svg>`,
-    C_GENERIC:  `<svg viewBox="-32 -16 64 32" stroke="#4ec9b0" fill="none" stroke-width="2" stroke-linecap="round"><line x1="-28" y1="0" x2="-5" y2="0"/><line x1="5" y1="0" x2="28" y2="0"/><line x1="-5" y1="-14" x2="-5" y2="14"/><line x1="5" y1="-14" x2="5" y2="14"/></svg>`,
-    LED_GENERIC:`<svg viewBox="-36 -16 72 32" stroke="#4ec9b0" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="-32" y1="0" x2="-12" y2="0"/><polygon points="-12,-12 -12,12 12,0" fill="rgba(78,201,176,0.2)"/><line x1="12" y1="-12" x2="12" y2="12"/><line x1="12" y1="0" x2="32" y2="0"/></svg>`,
+    // ── Passives ──
+    R_GENERIC:  `<svg viewBox="-40 -12 80 24" stroke="${s}" fill="none" stroke-width="2" stroke-linecap="round"><line x1="-36" y1="0" x2="-20" y2="0"/><polyline points="-20,0 -15,-8 -5,8 5,-8 15,8 20,0"/><line x1="20" y1="0" x2="36" y2="0"/></svg>`,
+    C_GENERIC:  `<svg viewBox="-32 -16 64 32" stroke="${s}" fill="none" stroke-width="2" stroke-linecap="round"><line x1="-28" y1="0" x2="-5" y2="0"/><line x1="5" y1="0" x2="28" y2="0"/><line x1="-5" y1="-14" x2="-5" y2="14"/><line x1="5" y1="-14" x2="5" y2="14"/></svg>`,
+    L_GENERIC:  `<svg viewBox="-40 -12 80 24" stroke="${s}" fill="none" stroke-width="2" stroke-linecap="round"><line x1="-36" y1="0" x2="-24" y2="0"/><path d="M-24,0 A6,6 0 0,1 -12,0 A6,6 0 0,1 0,0 A6,6 0 0,1 12,0 A6,6 0 0,1 24,0" /><line x1="24" y1="0" x2="36" y2="0"/></svg>`,
+    LED_GENERIC:`<svg viewBox="-36 -18 72 36" stroke="${s}" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="-32" y1="0" x2="-12" y2="0"/><polygon points="-12,-12 -12,12 12,0" fill="rgba(78,201,176,0.2)"/><line x1="12" y1="-12" x2="12" y2="12"/><line x1="12" y1="0" x2="32" y2="0"/><line x1="6" y1="-14" x2="12" y2="-20" stroke="#dcdcaa"/><line x1="12" y1="-14" x2="18" y2="-20" stroke="#dcdcaa"/></svg>`,
+    // ── Diodes ──
+    D_1N4007:   `<svg viewBox="-36 -16 72 32" stroke="${s}" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="-32" y1="0" x2="-12" y2="0"/><polygon points="-12,-12 -12,12 12,0" fill="rgba(78,201,176,0.2)"/><line x1="12" y1="-12" x2="12" y2="12"/><line x1="12" y1="0" x2="32" y2="0"/></svg>`,
+    D_ZENER:    `<svg viewBox="-36 -18 72 36" stroke="${s}" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="-32" y1="0" x2="-12" y2="0"/><polygon points="-12,-12 -12,12 12,0" fill="rgba(78,201,176,0.2)"/><line x1="12" y1="-12" x2="12" y2="12"/><line x1="12" y1="-12" x2="7" y2="-17"/><line x1="12" y1="12" x2="17" y2="17"/><line x1="12" y1="0" x2="32" y2="0"/></svg>`,
+    D_SCHOTTKY: `<svg viewBox="-36 -18 72 36" stroke="${s}" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="-32" y1="0" x2="-12" y2="0"/><polygon points="-12,-12 -12,12 12,0" fill="rgba(78,201,176,0.2)"/><line x1="12" y1="-12" x2="12" y2="12"/><path d="M8,-12 L12,-12 L12,12 L16,12" fill="none"/><line x1="12" y1="0" x2="32" y2="0"/></svg>`,
+    // ── Transistors ──
+    Q_NPN_BC547:`<svg viewBox="-28 -24 56 48" stroke="#dcdcaa" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="0" cy="0" r="16" fill="rgba(220,220,170,0.12)"/><line x1="-22" y1="0" x2="-8" y2="0"/><line x1="-8" y1="-12" x2="-8" y2="12" stroke-width="2.5"/><line x1="-8" y1="-6" x2="12" y2="-18"/><line x1="-8" y1="6" x2="12" y2="18"/><polygon points="12,18 5,14 8,10" fill="#dcdcaa"/></svg>`,
+    Q_PNP_BC557:`<svg viewBox="-28 -24 56 48" stroke="#dcdcaa" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="0" cy="0" r="16" fill="rgba(220,220,170,0.12)"/><line x1="-22" y1="0" x2="-8" y2="0"/><line x1="-8" y1="-12" x2="-8" y2="12" stroke-width="2.5"/><line x1="-8" y1="-6" x2="12" y2="-18"/><line x1="-8" y1="6" x2="12" y2="18"/><polygon points="-8,6 -1,4 -2,10" fill="#dcdcaa"/></svg>`,
+    Q_NMOS_2N7000:`<svg viewBox="-30 -24 60 48" stroke="#dcdcaa" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="0" cy="0" r="16" fill="rgba(220,220,170,0.12)"/><line x1="-26" y1="0" x2="-12" y2="0"/><line x1="-12" y1="-10" x2="-12" y2="10" stroke-width="2.5"/><line x1="-8" y1="-10" x2="-8" y2="-4"/><line x1="-8" y1="-1" x2="-8" y2="1"/><line x1="-8" y1="4" x2="-8" y2="10"/><line x1="-8" y1="-10" x2="12" y2="-18"/><line x1="-8" y1="10" x2="12" y2="18"/><polygon points="-12,0 -17,-3 -17,3" fill="#dcdcaa"/></svg>`,
+    // ── Misc Passives ──
+    BTN_TACT:   `<svg viewBox="-32 -16 64 32" stroke="${s}" fill="none" stroke-width="2" stroke-linecap="round"><line x1="-28" y1="-8" x2="-12" y2="-8"/><line x1="-28" y1="8" x2="-12" y2="8"/><line x1="12" y1="-8" x2="28" y2="-8"/><line x1="12" y1="8" x2="28" y2="8"/><line x1="-12" y1="-12" x2="-12" y2="12"/><line x1="12" y1="-12" x2="12" y2="12"/><line x1="-12" y1="0" x2="12" y2="0" stroke-dasharray="3,3"/></svg>`,
+    CRYSTAL:    `<svg viewBox="-28 -16 56 32" stroke="${s}" fill="none" stroke-width="2" stroke-linecap="round"><line x1="-24" y1="0" x2="-8" y2="0"/><line x1="8" y1="0" x2="24" y2="0"/><rect x="-8" y="-12" width="16" height="24" rx="1"/><line x1="-3" y1="-12" x2="-3" y2="12" stroke-width="2.5"/><line x1="3" y1="-12" x2="3" y2="12" stroke-width="2.5"/></svg>`,
+    BUZZER:     `<svg viewBox="-24 -16 48 32" stroke="${s}" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="0" cy="0" r="14" fill="rgba(78,201,176,0.1)"/><line x1="-22" y1="0" x2="-14" y2="0"/><line x1="14" y1="0" x2="22" y2="0"/><text x="0" y="4" text-anchor="middle" fill="${s}" font-size="10" font-family="monospace" stroke="none">~</text></svg>`,
+    // ── Power ──
     PWR_VCC:    `<svg viewBox="-16 -20 32 36" stroke="#f44747" fill="none" stroke-width="2"><line x1="0" y1="14" x2="0" y2="-4"/><polygon points="0,-16 -10,-4 10,-4" fill="rgba(244,71,71,0.25)" stroke="#f44747"/></svg>`,
     PWR_GND:    `<svg viewBox="-18 -10 36 32" stroke="#6a9955" fill="none" stroke-width="2"><line x1="0" y1="-8" x2="0" y2="4"/><line x1="-16" y1="4" x2="16" y2="4"/><line x1="-10" y1="10" x2="10" y2="10"/><line x1="-4" y1="16" x2="4" y2="16"/></svg>`,
+    LM7805:     `<svg viewBox="-24 -16 48 32" stroke="${s}" fill="none" stroke-width="1.5" stroke-linecap="round"><rect x="-16" y="-12" width="32" height="24" rx="2" fill="rgba(78,201,176,0.08)"/><text x="0" y="2" text-anchor="middle" fill="${s}" font-size="8" font-family="monospace" stroke="none">7805</text><line x1="-24" y1="0" x2="-16" y2="0"/><line x1="16" y1="0" x2="24" y2="0"/><line x1="0" y1="12" x2="0" y2="18"/></svg>`,
+    LM317:      `<svg viewBox="-24 -16 48 32" stroke="${s}" fill="none" stroke-width="1.5" stroke-linecap="round"><rect x="-16" y="-12" width="32" height="24" rx="2" fill="rgba(78,201,176,0.08)"/><text x="0" y="2" text-anchor="middle" fill="${s}" font-size="8" font-family="monospace" stroke="none">317</text><line x1="-24" y1="0" x2="-16" y2="0"/><line x1="16" y1="0" x2="24" y2="0"/><line x1="0" y1="12" x2="0" y2="18"/></svg>`,
+    AMS1117_3V3:`<svg viewBox="-24 -16 48 32" stroke="${s}" fill="none" stroke-width="1.5" stroke-linecap="round"><rect x="-16" y="-12" width="32" height="24" rx="2" fill="rgba(78,201,176,0.08)"/><text x="0" y="2" text-anchor="middle" fill="${s}" font-size="7" font-family="monospace" stroke="none">1117</text><line x1="-24" y1="0" x2="-16" y2="0"/><line x1="16" y1="0" x2="24" y2="0"/></svg>`,
+    // ── Sensors ──
+    LDR:        `<svg viewBox="-28 -14 56 28" stroke="${s}" fill="none" stroke-width="2" stroke-linecap="round"><line x1="-24" y1="0" x2="-14" y2="0"/><polyline points="-14,0 -10,-6 -2,6 6,-6 14,6 18,0"/><line x1="18" y1="0" x2="24" y2="0"/><line x1="-4" y1="-10" x2="2" y2="-16" stroke="#dcdcaa" stroke-width="1.5"/><line x1="4" y1="-10" x2="10" y2="-16" stroke="#dcdcaa" stroke-width="1.5"/></svg>`,
+    NTC_10K:    `<svg viewBox="-28 -14 56 28" stroke="${s}" fill="none" stroke-width="2" stroke-linecap="round"><line x1="-24" y1="0" x2="-14" y2="0"/><rect x="-14" y="-8" width="28" height="16" rx="1"/><line x1="14" y1="0" x2="24" y2="0"/><text x="0" y="4" text-anchor="middle" fill="${s}" font-size="9" font-family="monospace" stroke="none">t</text></svg>`,
+    // ── Connectors ──
+    CONN_2PIN:  `<svg viewBox="-20 -14 40 28" stroke="${s}" fill="none" stroke-width="1.5"><rect x="-10" y="-12" width="20" height="24" rx="2" fill="rgba(78,201,176,0.08)"/><circle cx="0" cy="-5" r="3" fill="${s}"/><circle cx="0" cy="5" r="3" fill="${s}"/></svg>`,
+    CONN_3PIN:  `<svg viewBox="-20 -18 40 36" stroke="${s}" fill="none" stroke-width="1.5"><rect x="-10" y="-16" width="20" height="32" rx="2" fill="rgba(78,201,176,0.08)"/><circle cx="0" cy="-8" r="3" fill="${s}"/><circle cx="0" cy="0" r="3" fill="${s}"/><circle cx="0" cy="8" r="3" fill="${s}"/></svg>`,
+    CONN_4PIN:  `<svg viewBox="-20 -22 40 44" stroke="${s}" fill="none" stroke-width="1.5"><rect x="-10" y="-20" width="20" height="40" rx="2" fill="rgba(78,201,176,0.08)"/><circle cx="0" cy="-12" r="3" fill="${s}"/><circle cx="0" cy="-4" r="3" fill="${s}"/><circle cx="0" cy="4" r="3" fill="${s}"/><circle cx="0" cy="12" r="3" fill="${s}"/></svg>`,
+    CONN_USB_MICRO:`<svg viewBox="-20 -16 40 32" stroke="${s}" fill="none" stroke-width="1.5"><path d="M-12,-14 L12,-14 L16,-6 L16,14 L-16,14 L-16,-6 Z" fill="rgba(78,201,176,0.08)"/><rect x="-6" y="-2" width="12" height="8" rx="1"/></svg>`,
   };
-  return icons[partId] ?? `<svg viewBox="-20 -16 40 32" stroke="#569cd6" fill="#252526" stroke-width="1.5"><rect x="-18" y="-14" width="36" height="28" rx="2"/></svg>`;
+  // For MCUs, Sensors, Displays, Drivers: generate IC-style icon with label
+  const icParts = {
+    ESP32_WROOM: 'ESP32', ARDUINO_UNO: 'UNO', ARDUINO_NANO: 'NANO', ARDUINO_MEGA: 'MEGA',
+    ESP8266_12F: '8266', STM32F103C8: 'STM32', ATTINY85: 'T85', RPIPICO: 'PICO',
+    ATMEGA328P: '328P', BME280: 'BME', DHT22: 'DHT', HC_SR04: 'SR04', MPU6050: 'MPU',
+    DS18B20: 'DS18', PIR_HCSR501: 'PIR', SSD1306_OLED: 'OLED', LCD_1602: 'LCD',
+    L293D: 'L293', ULN2003: 'ULN',
+  };
+  if (icons[partId]) return icons[partId];
+  if (icParts[partId]) {
+    const label = icParts[partId];
+    return `<svg viewBox="-24 -18 48 36" stroke="#569cd6" fill="none" stroke-width="1.5"><rect x="-20" y="-16" width="40" height="32" rx="2" fill="rgba(86,156,214,0.1)"/><line x1="-20" y1="-8" x2="-24" y2="-8"/><line x1="-20" y1="0" x2="-24" y2="0"/><line x1="-20" y1="8" x2="-24" y2="8"/><line x1="20" y1="-8" x2="24" y2="-8"/><line x1="20" y1="0" x2="24" y2="0"/><line x1="20" y1="8" x2="24" y2="8"/><text x="0" y="3" text-anchor="middle" fill="#569cd6" font-size="8" font-family="monospace" stroke="none">${label}</text></svg>`;
+  }
+  return `<svg viewBox="-24 -18 48 36" stroke="#569cd6" fill="none" stroke-width="1.5"><rect x="-20" y="-16" width="40" height="32" rx="2" fill="rgba(86,156,214,0.1)"/><line x1="-20" y1="-6" x2="-24" y2="-6"/><line x1="-20" y1="6" x2="-24" y2="6"/><line x1="20" y1="-6" x2="24" y2="-6"/><line x1="20" y1="6" x2="24" y2="6"/></svg>`;
 }
 
 document.getElementById('comp-search')?.addEventListener('input', buildSidebar);
