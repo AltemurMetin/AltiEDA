@@ -279,7 +279,14 @@ export const FOOTPRINT_MAP = {
   'ESP8266-12F':    _moduleFootprint('ESP8266-12F', 16, 2.0),
   LQFP48:           _moduleFootprint('LQFP48', 36, 1.0),
   RPi_Pico:         _moduleFootprint('RPi_Pico', 40, 2.54),
+
 };
+
+// ── Aliases: map dotted footprintIds to their underscore entries ─────────────
+FOOTPRINT_MAP['Connector_2pin_2.54mm'] = FOOTPRINT_MAP.Connector_2pin_2_54mm;
+FOOTPRINT_MAP['Connector_3pin_2.54mm'] = FOOTPRINT_MAP.Connector_3pin_2_54mm;
+FOOTPRINT_MAP['Connector_4pin_2.54mm'] = FOOTPRINT_MAP.Connector_4pin_2_54mm;
+FOOTPRINT_MAP['OLED_0.96in']          = FOOTPRINT_MAP.OLED_0_96in;
 
 /** Generate a generic module footprint with N pins in dual rows */
 function _moduleFootprint(id, pinCount, pitch) {
