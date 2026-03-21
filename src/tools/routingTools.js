@@ -127,6 +127,7 @@ export class WireTool {
     }
     if (segments.length === 0) return null;
 
+    state.pushUndo();
     for (const wire of segments) {
       if (this._isJunctionPoint(wire.x2, wire.y2)) {
         state.schematic.junctions.push({ x: wire.x2, y: wire.y2 });
@@ -244,6 +245,7 @@ export function placeVia(worldX, worldY, startLayer, endLayer, renderer) {
     }
   }
 
+  state.pushUndo();
   state.addVia(via);
 
   // Update netlist: record via as a pseudo-connection between layers
@@ -270,6 +272,7 @@ export function placeProbeTool(worldX, worldY, probeType, renderer) {
     probe.netName = state.schematic.nets[netId]?.name ?? netId;
   }
 
+  state.pushUndo();
   state.addProbe(probe);
   return probe;
 }

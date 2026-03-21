@@ -14,10 +14,49 @@ class StateManager {
     this.pcb       = createPCBState();
     this.mode      = 'schematic'; // 'schematic' | 'pcb' | '3d' | 'simulation'
     this._listeners = [];
+    this._undoStack = [];
+    this._redoStack = [];
+    this._maxHistory = 50;
   }
 
   subscribe(fn) { this._listeners.push(fn); }
   _emit(event, payload) { this._listeners.forEach(fn => fn(event, payload)); }
+
+  // ── Undo / Redo ─────────────────────────────────────────────────────────────
+  _snapshot() {
+    return JSON.stringify({ schematic: this.schematic, pcb: this.pcb });
+  }
+
+  pushUndo() {
+    this._undoStack.push(this._snapshot());
+    if (this._undoStack.length > this._maxHistory) this._undoStack.shift();
+    this._redoStack.length = 0;
+  }
+
+  undo() {
+    if (!this._undoStack.length) return false;
+    this._redoStack.push(this._snapshot());
+    const snap = this._undoStack.pop();
+    const data = JSON.parse(snap);
+    this.schematic = data.schematic;
+    this.pcb       = data.pcb;
+    this._emit('state:load', null);
+    return true;
+  }
+
+  redo() {
+    if (!this._redoStack.length) return false;
+    this._undoStack.push(this._snapshot());
+    const snap = this._redoStack.pop();
+    const data = JSON.parse(snap);
+    this.schematic = data.schematic;
+    this.pcb       = data.pcb;
+    this._emit('state:load', null);
+    return true;
+  }
+
+  get canUndo() { return this._undoStack.length > 0; }
+  get canRedo() { return this._redoStack.length > 0; }
 
   // ── Component management ──────────────────────────────────────────────────
   addComponent(comp) {

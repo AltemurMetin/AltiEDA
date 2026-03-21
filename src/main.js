@@ -94,6 +94,7 @@ function buildSidebar() {
         if (el === cvs || cvs?.contains(el)) {
           const pt   = renderer.getCanvasDropPoint(t.clientX, t.clientY);
           const comp = createComponent(lib, pt.x, pt.y);
+          state.pushUndo();
           state.addComponent(comp);
           const sugs   = generateSuggestions(comp);
           const powerS = sugs.filter(s => ['POWER','GND'].includes(s.netClass));
@@ -175,6 +176,7 @@ canvas.addEventListener('drop', e => {
 
   const pt   = renderer.getCanvasDropPoint(e.clientX, e.clientY);
   const comp = createComponent(lib, pt.x, pt.y);
+  state.pushUndo();
   state.addComponent(comp);
 
   const sugs   = generateSuggestions(comp);
@@ -207,6 +209,7 @@ function startCompDrag(comp, clientX, clientY) {
   _drag.startClient = { x: clientX, y: clientY };
   comp.selected     = true;
   canvas.style.cursor = 'grabbing';
+  state.pushUndo();
 }
 
 function moveCompDrag(clientX, clientY) {
@@ -606,6 +609,7 @@ function hideCompActions() {
 
 function deleteSelected() {
   if (!_actionTarget) return;
+  state.pushUndo();
   state.removeComponent(_actionTarget.id);
   hideCompActions();
   hidePanel();
@@ -615,6 +619,7 @@ function deleteSelected() {
 
 function rotateSelected() {
   if (!_actionTarget) return;
+  state.pushUndo();
   _actionTarget.rotation = (_actionTarget.rotation + 90) % 360;
   positionCompActions(_actionTarget);
   renderer.render();
@@ -623,6 +628,7 @@ function rotateSelected() {
 
 function mirrorSelected() {
   if (!_actionTarget) return;
+  state.pushUndo();
   _actionTarget.mirrored = !_actionTarget.mirrored;
   renderer.render();
 }
@@ -696,6 +702,7 @@ function showValueModal(comp) {
     document.getElementById('vm-ok').addEventListener('click', () => {
       const val = document.getElementById('vm-input').value.trim();
       if (modal._targetComp && val !== '') {
+        state.pushUndo();
         modal._targetComp.value = val;
         renderer.render();
         setMsg(`Value set to ${val}`);
@@ -877,6 +884,7 @@ function buildReplaceList(comp) {
       const newComp = createComponent(lib, target.x, target.y);
       newComp.rotation = target.rotation;
       newComp.selected = true;
+      state.pushUndo();
       state.removeComponent(target.id);
       state.addComponent(newComp);
       showCompActions(newComp);
@@ -931,7 +939,10 @@ window.addEventListener('keydown', e => {
       renderer.render();
       break;
     case 'delete':
-    case 'backspace':
+    case 'backspace': {
+      const hasSelected = Object.values(state.schematic.components).some(c => c.selected)
+        || _selectedWireId || _selectedViaId;
+      if (hasSelected) state.pushUndo();
       // Delete selected components
       Object.values(state.schematic.components)
         .filter(c => c.selected)
@@ -951,8 +962,17 @@ window.addEventListener('keydown', e => {
       }
       renderer.render();
       break;
+    }
   }
-  if (e.ctrlKey) {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      if (state.undo()) { renderer.render(); setMsg('Undo'); }
+    }
+    if (e.key === 'z' && e.shiftKey || e.key === 'y') {
+      e.preventDefault();
+      if (state.redo()) { renderer.render(); setMsg('Redo'); }
+    }
     if (e.key === 's') { e.preventDefault(); saveLocal(); }
     if (e.key === '0') { e.preventDefault(); renderer.fitAll(); updateZoomDisplay(); }
     if (e.key === 'a') {
