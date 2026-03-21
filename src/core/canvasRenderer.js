@@ -1052,22 +1052,70 @@ export class CanvasRenderer {
 
   /* ── Board outline ─────────────────────────────────────────────────────── */
   _drawBoardOutline() {
-    const outline = state.pcb.boardOutline;
-    if (!outline || outline.length < 2) return;
     const { ctx } = this;
+    const outline = state.pcb.boardOutline;
+    const board   = state.pcb.board;
+
+    // Use explicit outline if set, otherwise derive from board rect
+    let points;
+    if (outline && outline.length >= 2) {
+      points = outline;
+    } else if (board) {
+      points = [
+        { x: board.x, y: board.y },
+        { x: board.x + board.width, y: board.y },
+        { x: board.x + board.width, y: board.y + board.height },
+        { x: board.x, y: board.y + board.height },
+      ];
+    } else {
+      return;
+    }
+
+    // Board fill — subtle dark PCB green background
+    ctx.fillStyle = '#0a1a0a';
+    ctx.beginPath();
+    const f0 = this.w2s(points[0].x, points[0].y);
+    ctx.moveTo(f0.x, f0.y);
+    for (let i = 1; i < points.length; i++) {
+      const fp = this.w2s(points[i].x, points[i].y);
+      ctx.lineTo(fp.x, fp.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Board edge — golden yellow dashed border
     ctx.strokeStyle = '#ffcc00';
     ctx.lineWidth   = Math.max(1.5, 2 * this.zoom);
     ctx.setLineDash([6, 4]);
     ctx.beginPath();
-    const p0 = this.w2s(outline[0].x, outline[0].y);
+    const p0 = this.w2s(points[0].x, points[0].y);
     ctx.moveTo(p0.x, p0.y);
-    for (let i = 1; i < outline.length; i++) {
-      const p = this.w2s(outline[i].x, outline[i].y);
+    for (let i = 1; i < points.length; i++) {
+      const p = this.w2s(points[i].x, points[i].y);
       ctx.lineTo(p.x, p.y);
     }
     ctx.closePath();
     ctx.stroke();
     ctx.setLineDash([]);
+
+    // Board dimension labels
+    if (board && this.zoom > 0.3) {
+      const bw = board.width.toFixed(1);
+      const bh = board.height.toFixed(1);
+      ctx.fillStyle    = '#ffcc0088';
+      ctx.font         = `${Math.max(9, 10 * this.zoom)}px monospace`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      const topMid = this.w2s(board.x + board.width / 2, board.y);
+      ctx.fillText(`${bw} mm`, topMid.x, topMid.y - 16 * this.zoom);
+      ctx.save();
+      ctx.translate(this.w2s(board.x, board.y + board.height / 2).x - 16 * this.zoom,
+                    this.w2s(board.x, board.y + board.height / 2).y);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText(`${bh} mm`, 0, 0);
+      ctx.restore();
+      ctx.textBaseline = 'alphabetic';
+    }
   }
 
   /* ── Copper traces (PCB wires) ──────────────────────────────────────── */

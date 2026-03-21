@@ -9,6 +9,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { state }         from '../core/schematicState.js';
 import { defaultStackup } from '../core/dataModels.js';
 import { FOOTPRINT_MAP }  from '../core/footprintLibrary.js';
+import { generateNetlist, buildRatsnest } from '../core/netlistGenerator.js';
 
 // Colour map for layer types
 const LAYER_COLORS = {
@@ -211,6 +212,9 @@ let _threeDView = null;
 
 export function toggle2D3DView(targetMode, canvasEl, threeContainer) {
   if (targetMode === '3d') {
+    // Ensure PCB state is populated from schematic before 3D render
+    _ensurePCBState();
+
     canvasEl.style.display = 'none';
     threeContainer.style.display = 'block';
     if (!_threeDView) {
@@ -221,7 +225,62 @@ export function toggle2D3DView(targetMode, canvasEl, threeContainer) {
   } else {
     canvasEl.style.display = 'block';
     threeContainer.style.display = 'none';
-    state.mode = 'schematic';
+    // Restore to pcb mode if we came from 3d (pcb components exist)
+    state.mode = Object.keys(state.pcb.components).length > 0 ? 'pcb' : 'schematic';
+  }
+}
+
+/** Populate state.pcb from schematic if empty, so 3D view has data */
+function _ensurePCBState() {
+  // Place components
+  for (const comp of Object.values(state.schematic.components)) {
+    if (!state.pcb.components[comp.id]) {
+      state.pcb.components[comp.id] = {
+        id:          comp.id,
+        footprintId: comp.footprintId,
+        x:           comp.x,
+        y:           comp.y,
+        rotation:    comp.rotation,
+        layer:       'F.Cu',
+      };
+    }
+  }
+
+  // Convert wires to traces
+  if (Object.keys(state.pcb.traces).length === 0) {
+    for (const wire of Object.values(state.schematic.wires)) {
+      const traceId = 'trace_' + wire.id;
+      state.pcb.traces[traceId] = {
+        id:    traceId,
+        x1:    wire.x1,
+        y1:    wire.y1,
+        x2:    wire.x2,
+        y2:    wire.y2,
+        layer: wire.layer || 'F.Cu',
+        width: 0.25,
+        netId: wire.netId ?? null,
+      };
+    }
+  }
+
+  // Auto-size board to fit components
+  const comps = Object.values(state.pcb.components);
+  if (comps.length > 0) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const c of comps) {
+      const fp = FOOTPRINT_MAP[c.footprintId];
+      const margin = fp ? Math.max(fp.body3d.width, fp.body3d.height) / 2 + 5 : 10;
+      minX = Math.min(minX, c.x - margin);
+      minY = Math.min(minY, c.y - margin);
+      maxX = Math.max(maxX, c.x + margin);
+      maxY = Math.max(maxY, c.y + margin);
+    }
+    state.pcb.board = {
+      x: minX,
+      y: minY,
+      width:  maxX - minX,
+      height: maxY - minY,
+    };
   }
 }
 

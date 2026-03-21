@@ -123,6 +123,34 @@ export function switchToPCBMode(renderer) {
     }
   }
 
+  // Auto-size board to fit all placed components with margin
+  const comps = Object.values(state.pcb.components);
+  if (comps.length > 0) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const c of comps) {
+      const fp = FOOTPRINT_MAP[c.footprintId];
+      const margin = fp ? Math.max(...fp.courtyard.map(p => Math.max(Math.abs(p[0]), Math.abs(p[1])))) + 5 : 10;
+      minX = Math.min(minX, c.x - margin);
+      minY = Math.min(minY, c.y - margin);
+      maxX = Math.max(maxX, c.x + margin);
+      maxY = Math.max(maxY, c.y + margin);
+    }
+    // Also include trace endpoints
+    for (const t of Object.values(state.pcb.traces)) {
+      minX = Math.min(minX, t.x1, t.x2);
+      minY = Math.min(minY, t.y1, t.y2);
+      maxX = Math.max(maxX, t.x1, t.x2);
+      maxY = Math.max(maxY, t.y1, t.y2);
+    }
+    const pad = 5; // 5-unit padding
+    state.pcb.board = {
+      x: minX - pad,
+      y: minY - pad,
+      width:  (maxX - minX) + pad * 2,
+      height: (maxY - minY) + pad * 2,
+    };
+  }
+
   const netlist = generateNetlist();
   state.pcb.ratsnest = buildRatsnest(netlist);
 
