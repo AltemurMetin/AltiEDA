@@ -363,12 +363,20 @@ export class CanvasRenderer {
     ctx.rotate(comp.rotation * Math.PI / 180);
 
     switch (comp.partId) {
-      case 'R_GENERIC':  this._symResistor(comp);  break;
-      case 'C_GENERIC':  this._symCapacitor(comp);  break;
-      case 'LED_GENERIC':this._symLED(comp);        break;
-      case 'L_GENERIC':  this._symInductor(comp);  break;
-      case 'PWR_VCC':    this._symVCC(comp);        break;
-      case 'PWR_GND':    this._symGND(comp);        break;
+      case 'R_GENERIC':    this._symResistor(comp);  break;
+      case 'C_GENERIC':    this._symCapacitor(comp); break;
+      case 'LED_GENERIC':  this._symLED(comp);       break;
+      case 'L_GENERIC':    this._symInductor(comp);  break;
+      case 'D_1N4007':
+      case 'D_ZENER':
+      case 'D_SCHOTTKY':   this._symDiode(comp);     break;
+      case 'Q_NPN_BC547':  this._symNPN(comp);       break;
+      case 'Q_PNP_BC557':  this._symPNP(comp);       break;
+      case 'Q_NMOS_2N7000':this._symNMOS(comp);      break;
+      case 'BTN_TACT':     this._symButton(comp);    break;
+      case 'CRYSTAL':      this._symCrystal(comp);   break;
+      case 'PWR_VCC':      this._symVCC(comp);       break;
+      case 'PWR_GND':      this._symGND(comp);       break;
       default:           this._symIC(comp);         break;
     }
 
@@ -544,6 +552,187 @@ export class CanvasRenderer {
 
     // Labels
     this._symLabel(comp, 0, -(r + 8 * z), 0, r + 6 * z, z);
+  }
+
+  /* Diode (also Zener / Schottky variants) */
+  _symDiode(comp) {
+    const { ctx } = this;
+    const z = this.zoom, lw = Math.max(1.2, 1.5*z);
+    const r = 12*z, lead = 12*z;
+    const col = comp.selected ? C.selected : C.symR;
+    ctx.strokeStyle = col; ctx.fillStyle = col;
+    ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(-(r+lead), 0); ctx.lineTo(-r, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(r, 0);  ctx.lineTo(r+lead, 0); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-r, r); ctx.lineTo(-r, -r); ctx.lineTo(r, 0); ctx.closePath();
+    ctx.globalAlpha = 0.2; ctx.fill(); ctx.globalAlpha = 1; ctx.stroke();
+    ctx.lineWidth = Math.max(2, 2*z);
+    ctx.beginPath(); ctx.moveTo(r, -r); ctx.lineTo(r, r); ctx.stroke();
+    ctx.lineWidth = lw;
+    if (comp.partId.includes('ZENER')) {
+      ctx.beginPath();
+      ctx.moveTo(r, -r); ctx.lineTo(r - 5*z, -r - 5*z);
+      ctx.moveTo(r,  r); ctx.lineTo(r + 5*z,  r + 5*z);
+      ctx.stroke();
+    }
+    if (comp.partId.includes('SCHOTTKY')) {
+      ctx.beginPath();
+      ctx.moveTo(r-4*z,-r); ctx.lineTo(r-4*z,-r+4*z); ctx.lineTo(r,-r+4*z);
+      ctx.moveTo(r+4*z, r); ctx.lineTo(r+4*z, r-4*z); ctx.lineTo(r, r-4*z);
+      ctx.stroke();
+    }
+    this._pinDot(-(r+lead), 0, comp.selected);
+    this._pinDot(r+lead, 0, comp.selected);
+    this._symLabel(comp, 0, -(r+10*z), 0, r+8*z, z);
+  }
+
+  /* NPN BJT */
+  _symNPN(comp) {
+    const { ctx } = this;
+    const z = this.zoom, lw = Math.max(1.2, 1.5*z);
+    const col = comp.selected ? C.selected : '#dcdcaa';
+    ctx.strokeStyle = col; ctx.fillStyle = col;
+    ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.globalAlpha = 0.12;
+    ctx.beginPath(); ctx.arc(0,0,16*z,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(0,0,16*z,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-20*z,0); ctx.lineTo(-8*z,0); ctx.stroke();
+    ctx.lineWidth = Math.max(2, 2.5*z);
+    ctx.beginPath(); ctx.moveTo(-8*z,-12*z); ctx.lineTo(-8*z,12*z); ctx.stroke();
+    ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.moveTo(-8*z,-8*z); ctx.lineTo(12*z,-18*z); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-8*z, 8*z); ctx.lineTo(12*z, 18*z); ctx.stroke();
+    // Arrow on emitter (NPN: outward)
+    { const ar=5*z, dx=20, dy=10, le=Math.sqrt(dx*dx+dy*dy), nx=dx/le, ny=dy/le;
+      const tx=12*z, ty=18*z, bx=tx-nx*ar*1.4, by=ty-ny*ar*1.4;
+      ctx.beginPath(); ctx.moveTo(tx,ty);
+      ctx.lineTo(bx+ny*ar*0.5, by-nx*ar*0.5);
+      ctx.lineTo(bx-ny*ar*0.5, by+nx*ar*0.5);
+      ctx.closePath(); ctx.fill(); }
+    this._pinDot(-20*z,0,comp.selected);
+    this._pinDot(12*z,-18*z,comp.selected);
+    this._pinDot(12*z, 18*z,comp.selected);
+    this._symLabel(comp, 0, -22*z, 0, 26*z, z);
+  }
+
+  /* PNP BJT */
+  _symPNP(comp) {
+    const { ctx } = this;
+    const z = this.zoom, lw = Math.max(1.2, 1.5*z);
+    const col = comp.selected ? C.selected : '#dcdcaa';
+    ctx.strokeStyle = col; ctx.fillStyle = col;
+    ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.globalAlpha = 0.12;
+    ctx.beginPath(); ctx.arc(0,0,16*z,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(0,0,16*z,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-20*z,0); ctx.lineTo(-8*z,0); ctx.stroke();
+    ctx.lineWidth = Math.max(2, 2.5*z);
+    ctx.beginPath(); ctx.moveTo(-8*z,-12*z); ctx.lineTo(-8*z,12*z); ctx.stroke();
+    ctx.lineWidth = lw;
+    ctx.beginPath(); ctx.moveTo(-8*z,-8*z); ctx.lineTo(12*z,-18*z); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-8*z, 8*z); ctx.lineTo(12*z, 18*z); ctx.stroke();
+    // Arrow on emitter (PNP: inward — at body end)
+    { const ar=5*z, dx=20, dy=10, le=Math.sqrt(dx*dx+dy*dy), nx=dx/le, ny=dy/le;
+      const ox=-8*z, oy=8*z, tx=ox+nx*ar*1.4, ty=oy+ny*ar*1.4;
+      ctx.beginPath(); ctx.moveTo(ox,oy);
+      ctx.lineTo(tx+ny*ar*0.5, ty-nx*ar*0.5);
+      ctx.lineTo(tx-ny*ar*0.5, ty+nx*ar*0.5);
+      ctx.closePath(); ctx.fill(); }
+    this._pinDot(-20*z,0,comp.selected);
+    this._pinDot(12*z,-18*z,comp.selected);
+    this._pinDot(12*z, 18*z,comp.selected);
+    this._symLabel(comp, 0, -22*z, 0, 26*z, z);
+  }
+
+  /* N-MOSFET */
+  _symNMOS(comp) {
+    const { ctx } = this;
+    const z = this.zoom, lw = Math.max(1.2, 1.5*z);
+    const col = comp.selected ? C.selected : '#dcdcaa';
+    ctx.strokeStyle = col; ctx.fillStyle = col;
+    ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // Circle body
+    ctx.globalAlpha = 0.12;
+    ctx.beginPath(); ctx.arc(0,0,16*z,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(0,0,16*z,0,Math.PI*2); ctx.stroke();
+    // Gate lead
+    ctx.beginPath(); ctx.moveTo(-24*z,0); ctx.lineTo(-12*z,0); ctx.stroke();
+    // Gate vertical bar
+    ctx.lineWidth = Math.max(2, 2.5*z);
+    ctx.beginPath(); ctx.moveTo(-12*z,-10*z); ctx.lineTo(-12*z,10*z); ctx.stroke();
+    ctx.lineWidth = lw;
+    // Channel segments (D, Body, S)
+    ctx.beginPath(); ctx.moveTo(-8*z,-10*z); ctx.lineTo(-8*z,-4*z); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-8*z, -1*z); ctx.lineTo(-8*z,  1*z); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-8*z,  4*z); ctx.lineTo(-8*z, 10*z); ctx.stroke();
+    // Drain and source lines
+    ctx.beginPath(); ctx.moveTo(-8*z,-10*z); ctx.lineTo(12*z,-18*z); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-8*z, 10*z); ctx.lineTo(12*z, 18*z); ctx.stroke();
+    // Arrow on source (NMOS: inward on body)
+    { const ar=5*z;
+      ctx.beginPath();
+      ctx.moveTo(-12*z,0);
+      ctx.lineTo(-12*z-ar, -ar*0.5);
+      ctx.lineTo(-12*z-ar,  ar*0.5);
+      ctx.closePath(); ctx.fill(); }
+    this._pinDot(-24*z,0,comp.selected);
+    this._pinDot(12*z,-18*z,comp.selected);
+    this._pinDot(12*z, 18*z,comp.selected);
+    this._symLabel(comp, 0, -22*z, 0, 26*z, z);
+  }
+
+  /* Push Button (TACT) */
+  _symButton(comp) {
+    const { ctx } = this;
+    const z = this.zoom, lw = Math.max(1.2, 1.5*z);
+    const col = comp.selected ? C.selected : C.symR;
+    ctx.strokeStyle = col; ctx.fillStyle = col;
+    ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const w = 12*z, h = 8*z, lead = 14*z;
+    // Left leads
+    ctx.beginPath(); ctx.moveTo(-(w+lead),-h); ctx.lineTo(-w,-h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-(w+lead), h); ctx.lineTo(-w, h); ctx.stroke();
+    // Right leads
+    ctx.beginPath(); ctx.moveTo(w, -h); ctx.lineTo(w+lead,-h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w,  h); ctx.lineTo(w+lead, h); ctx.stroke();
+    // Vertical bars left/right
+    ctx.beginPath(); ctx.moveTo(-w,-h*1.4); ctx.lineTo(-w,h*1.4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo( w,-h*1.4); ctx.lineTo( w,h*1.4); ctx.stroke();
+    // Dashed gap line
+    ctx.setLineDash([3*z, 3*z]);
+    ctx.beginPath(); ctx.moveTo(-w,0); ctx.lineTo(w,0); ctx.stroke();
+    ctx.setLineDash([]);
+    this._pinDot(-(w+lead),-h,comp.selected);
+    this._pinDot(-(w+lead), h,comp.selected);
+    this._pinDot( w+lead,  -h,comp.selected);
+    this._pinDot( w+lead,   h,comp.selected);
+    this._symLabel(comp, 0, -(h+14*z), 0, h+10*z, z);
+  }
+
+  /* Crystal */
+  _symCrystal(comp) {
+    const { ctx } = this;
+    const z = this.zoom, lw = Math.max(1.2, 1.5*z);
+    const col = comp.selected ? C.selected : C.symC;
+    ctx.strokeStyle = col; ctx.fillStyle = col;
+    ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const hw = 8*z, hh = 12*z, lead = 16*z;
+    // Leads
+    ctx.beginPath(); ctx.moveTo(-lead,0); ctx.lineTo(-hw,0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(hw,0); ctx.lineTo(lead,0); ctx.stroke();
+    // Body rect
+    ctx.strokeRect(-hw,-hh,hw*2,hh*2);
+    // Parallel plates
+    ctx.lineWidth = Math.max(2, 2.5*z);
+    ctx.beginPath(); ctx.moveTo(-hw*0.4,-hh); ctx.lineTo(-hw*0.4,hh); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo( hw*0.4,-hh); ctx.lineTo( hw*0.4,hh); ctx.stroke();
+    this._pinDot(-lead,0,comp.selected);
+    this._pinDot( lead,0,comp.selected);
+    this._symLabel(comp, 0, -(hh+10*z), 0, hh+8*z, z);
   }
 
   /* VCC power flag */
