@@ -4,6 +4,7 @@
  */
 import { state } from './schematicState.js';
 import { NetClass } from './dataModels.js';
+import { FOOTPRINT_MAP } from './footprintLibrary.js';
 
 // ── Color themes ──────────────────────────────────────────────────────────────
 const THEMES = {
@@ -112,6 +113,9 @@ export class CanvasRenderer {
     }, 500);
   }
 
+  /* ── Theme switching ──────────────────────────────────────────────────── */
+  applyTheme(mode) { applyTheme(mode); }
+
   /* ── Coordinate helpers ─────────────────────────────────────────────────── */
   s2w(sx, sy) {
     return { x: (sx - this.ox) / (GRID * this.zoom),
@@ -181,16 +185,28 @@ export class CanvasRenderer {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (this.showGrid) this._drawGrid();
-    this._drawWires();
-    this._drawComponents();
-    if (this.showPinTargets) this._drawPinTargets();
-    this._drawJunctions();
-    this._drawVias();
-    this._drawProbes();
-    this._drawSuggestions();
-    this._drawRatsnest();
-    this._drawDRC();
-    if (this._wirePreview) this._drawWirePreview();
+
+    if (state.mode === 'pcb') {
+      // PCB mode: draw board outline, copper traces, footprints, vias, ratsnest
+      this._drawBoardOutline();
+      this._drawPCBTraces();
+      this._drawPCBComponents();
+      this._drawVias();
+      this._drawRatsnest();
+      this._drawDRC();
+    } else {
+      // Schematic mode
+      this._drawWires();
+      this._drawComponents();
+      if (this.showPinTargets) this._drawPinTargets();
+      this._drawJunctions();
+      this._drawVias();
+      this._drawProbes();
+      this._drawSuggestions();
+      this._drawRatsnest();
+      this._drawDRC();
+      if (this._wirePreview) this._drawWirePreview();
+    }
   }
 
   /* ── Dot Grid ───────────────────────────────────────────────────────────── */
@@ -1028,6 +1044,187 @@ export class CanvasRenderer {
       ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.stroke();
     }
     ctx.globalAlpha = 1;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     PCB MODE RENDERING
+  ══════════════════════════════════════════════════════════════════════════ */
+
+  /* ── Board outline ─────────────────────────────────────────────────────── */
+  _drawBoardOutline() {
+    const outline = state.pcb.boardOutline;
+    if (!outline || outline.length < 2) return;
+    const { ctx } = this;
+    ctx.strokeStyle = '#ffcc00';
+    ctx.lineWidth   = Math.max(1.5, 2 * this.zoom);
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    const p0 = this.w2s(outline[0].x, outline[0].y);
+    ctx.moveTo(p0.x, p0.y);
+    for (let i = 1; i < outline.length; i++) {
+      const p = this.w2s(outline[i].x, outline[i].y);
+      ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  /* ── Copper traces (PCB wires) ──────────────────────────────────────── */
+  _drawPCBTraces() {
+    const { ctx } = this;
+    ctx.lineCap = 'round';
+
+    // Draw schematic wires as copper traces in PCB mode
+    for (const w of Object.values(state.schematic.wires)) {
+      const p1 = this.w2s(w.x1, w.y1), p2 = this.w2s(w.x2, w.y2);
+      const layer = w.layer || 'F.Cu';
+      ctx.strokeStyle = w.selected ? C.selected : (layer === 'B.Cu' ? C.traceB : C.traceF);
+      ctx.lineWidth   = Math.max(3, (w.traceWidth || 0.25) * GRID * this.zoom);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+    }
+
+    // Draw explicit PCB traces
+    for (const t of Object.values(state.pcb.traces)) {
+      const p1 = this.w2s(t.x1, t.y1), p2 = this.w2s(t.x2, t.y2);
+      ctx.strokeStyle = t.selected ? C.selected : (t.layer === 'B.Cu' ? C.traceB : C.traceF);
+      ctx.lineWidth   = Math.max(3, (t.width || 0.25) * GRID * this.zoom);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+    }
+  }
+
+  /* ── PCB Footprint components ──────────────────────────────────────────── */
+  _drawPCBComponents() {
+    const pcbComps = state.pcb.components;
+    for (const pcbComp of Object.values(pcbComps)) {
+      this._drawFootprint(pcbComp);
+    }
+  }
+
+  _drawFootprint(pcbComp) {
+    const { ctx } = this;
+    const z = this.zoom;
+    const fp = FOOTPRINT_MAP[pcbComp.footprintId];
+    const schComp = state.schematic.components[pcbComp.id];
+    const s = this.w2s(pcbComp.x, pcbComp.y);
+
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate((pcbComp.rotation || 0) * Math.PI / 180);
+
+    // Scale: footprint data is in mm, we convert mm → world grid units → screen px
+    // 1 grid unit = 2.54mm, so 1mm = (1/2.54) grid units = (1/2.54)*GRID*zoom screen px
+    const mmToPx = (GRID * z) / 2.54;
+
+    if (fp) {
+      // ── Courtyard (dashed outline) ─────────────────────────────────────
+      if (fp.courtyard && fp.courtyard.length >= 2) {
+        ctx.strokeStyle = '#ffff0044';
+        ctx.lineWidth   = Math.max(0.5, 0.8 * z);
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(fp.courtyard[0][0] * mmToPx, fp.courtyard[0][1] * mmToPx);
+        for (let i = 1; i < fp.courtyard.length; i++) {
+          ctx.lineTo(fp.courtyard[i][0] * mmToPx, fp.courtyard[i][1] * mmToPx);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // ── Silkscreen lines ───────────────────────────────────────────────
+      if (fp.silkscreen) {
+        ctx.strokeStyle = '#e0e0e0';
+        ctx.lineWidth   = Math.max(0.8, 1.2 * z);
+        for (const line of fp.silkscreen) {
+          ctx.beginPath();
+          ctx.moveTo(line.x1 * mmToPx, line.y1 * mmToPx);
+          ctx.lineTo(line.x2 * mmToPx, line.y2 * mmToPx);
+          ctx.stroke();
+        }
+      }
+
+      // ── Pads ───────────────────────────────────────────────────────────
+      for (const pad of fp.pads) {
+        const px = pad.x * mmToPx;
+        const py = pad.y * mmToPx;
+        const ps = pad.padstack;
+        const isTH = ps?.mountType === 'TH';
+        const layer = pcbComp.layer || 'F.Cu';
+
+        // Pad color by layer
+        const padColor = layer === 'B.Cu' ? C.traceB : C.traceF;
+
+        if (ps?.shape === 'circle') {
+          // Through-hole circular pad
+          const padR = (ps.width / 2) * mmToPx;
+          const drillR = padR * 0.45;  // drill hole ~45% of pad
+
+          // Copper pad
+          ctx.fillStyle = pcbComp.selected ? C.selected : padColor;
+          ctx.beginPath(); ctx.arc(px, py, padR, 0, Math.PI * 2); ctx.fill();
+
+          // Drill hole
+          ctx.fillStyle = C.bg;
+          ctx.beginPath(); ctx.arc(px, py, Math.max(1, drillR), 0, Math.PI * 2); ctx.fill();
+        } else {
+          // SMD rectangular pad
+          const pw = (ps?.width  || 1.4) * mmToPx;
+          const ph = (ps?.height || 1.0) * mmToPx;
+
+          ctx.fillStyle = pcbComp.selected ? C.selected : padColor;
+          // Rounded rect for SMD pads
+          const rr = Math.min(pw, ph) * 0.15;
+          ctx.beginPath();
+          ctx.roundRect(px - pw/2, py - ph/2, pw, ph, rr);
+          ctx.fill();
+        }
+
+        // Pad number label
+        if (z > 0.5) {
+          ctx.fillStyle    = isTH ? '#000000' : '#000000';
+          ctx.font         = `bold ${Math.max(5, 6 * z)}px monospace`;
+          ctx.textAlign    = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(pad.number), px, py);
+          ctx.textBaseline = 'alphabetic';
+        }
+      }
+    } else {
+      // No footprint data — draw a generic placeholder box
+      const bw = 16 * z, bh = 12 * z;
+      ctx.strokeStyle = pcbComp.selected ? C.selected : '#666';
+      ctx.lineWidth   = Math.max(1, 1.5 * z);
+      ctx.setLineDash([3, 2]);
+      ctx.strokeRect(-bw, -bh, bw * 2, bh * 2);
+      ctx.setLineDash([]);
+
+      // Two placeholder pads
+      ctx.fillStyle = C.traceF;
+      ctx.beginPath(); ctx.arc(-bw * 0.5, 0, 4 * z, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc( bw * 0.5, 0, 4 * z, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // ── Component reference label ──────────────────────────────────────
+    const label = schComp?.partName || pcbComp.id;
+    const valLabel = schComp?.value || '';
+    ctx.fillStyle    = '#e0e0e0';
+    ctx.font         = `bold ${Math.max(7, 8 * z)}px monospace`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'alphabetic';
+
+    // Position label above the footprint
+    const fpHeight = fp?.courtyard
+      ? Math.max(...fp.courtyard.map(c => Math.abs(c[1]))) * mmToPx
+      : 14 * z;
+    ctx.fillText(label, 0, -(fpHeight + 4 * z));
+    if (valLabel) {
+      ctx.fillStyle = '#888888';
+      ctx.font      = `${Math.max(6, 7 * z)}px monospace`;
+      ctx.fillText(valLabel, 0, fpHeight + 10 * z);
+    }
+
+    ctx.restore();
   }
 
   /* ── Drop helper ────────────────────────────────────────────────────────── */

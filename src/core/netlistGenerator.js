@@ -106,13 +106,34 @@ export function switchToPCBMode(renderer) {
     }
   }
 
+  // Convert schematic wires to PCB copper traces (if not already created)
+  if (Object.keys(state.pcb.traces).length === 0) {
+    for (const wire of Object.values(state.schematic.wires)) {
+      const traceId = 'trace_' + wire.id;
+      state.pcb.traces[traceId] = {
+        id:    traceId,
+        x1:    wire.x1,
+        y1:    wire.y1,
+        x2:    wire.x2,
+        y2:    wire.y2,
+        layer: wire.layer || 'F.Cu',
+        width: 0.25,         // default trace width (mm equivalent in grid)
+        netId: wire.netId ?? null,
+      };
+    }
+  }
+
   const netlist = generateNetlist();
   state.pcb.ratsnest = buildRatsnest(netlist);
+
+  // Apply PCB theme
+  if (renderer.applyTheme) renderer.applyTheme('pcb');
   renderer.render();
 }
 
 // ── Switch to Schematic mode ──────────────────────────────────────────────────
 export function switchToSchematicMode(renderer) {
   state.mode = 'schematic';
+  if (renderer.applyTheme) renderer.applyTheme('schematic');
   renderer.render();
 }
