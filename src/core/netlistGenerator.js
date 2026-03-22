@@ -154,9 +154,10 @@ export function switchToPCBMode(renderer) {
   const netlist = generateNetlist();
   state.pcb.ratsnest = buildRatsnest(netlist);
 
-  // Apply PCB theme
+  // Apply PCB theme and center view on the board
   if (renderer.applyTheme) renderer.applyTheme('pcb');
-  renderer.render();
+  if (renderer.fitAll) renderer.fitAll();
+  else renderer.render();
 }
 
 // ── Switch to Schematic mode ──────────────────────────────────────────────────

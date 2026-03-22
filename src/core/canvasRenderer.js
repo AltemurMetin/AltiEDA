@@ -144,13 +144,31 @@ export class CanvasRenderer {
   }
 
   fitAll() {
-    const comps = Object.values(state.schematic.components);
-    if (!comps.length) { this.ox = this.canvas.width/2; this.oy = this.canvas.height/2; this.zoom = 1; this.render(); return; }
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-    for (const c of comps) {
-      minX=Math.min(minX,c.x-5); minY=Math.min(minY,c.y-5);
-      maxX=Math.max(maxX,c.x+5); maxY=Math.max(maxY,c.y+5);
+
+    if (state.mode === 'pcb') {
+      // In PCB mode, fit to board bounds + pcb components
+      const board = state.pcb.board;
+      if (board) {
+        minX = board.x; minY = board.y;
+        maxX = board.x + board.width; maxY = board.y + board.height;
+      }
+      for (const c of Object.values(state.pcb.components)) {
+        minX=Math.min(minX,c.x-5); minY=Math.min(minY,c.y-5);
+        maxX=Math.max(maxX,c.x+5); maxY=Math.max(maxY,c.y+5);
+      }
+    } else {
+      // Schematic mode
+      const comps = Object.values(state.schematic.components);
+      if (!comps.length) { this.ox = this.canvas.width/2; this.oy = this.canvas.height/2; this.zoom = 1; this.render(); return; }
+      for (const c of comps) {
+        minX=Math.min(minX,c.x-5); minY=Math.min(minY,c.y-5);
+        maxX=Math.max(maxX,c.x+5); maxY=Math.max(maxY,c.y+5);
+      }
     }
+
+    if (!isFinite(minX)) { this.ox = this.canvas.width/2; this.oy = this.canvas.height/2; this.zoom = 1; this.render(); return; }
+
     const pw=this.canvas.width*0.85, ph=this.canvas.height*0.85;
     const zx=pw/((maxX-minX)*GRID), zy=ph/((maxY-minY)*GRID);
     this.zoom = Math.min(zx,zy,5);
@@ -1167,7 +1185,7 @@ export class CanvasRenderer {
   /* ── PCB Footprint components ──────────────────────────────────────────── */
   _drawPCBComponents() {
     const pcbComps = state.pcb.components;
-    for (const pcbComp of Object.values(pcbComps)) {
+for (const pcbComp of Object.values(pcbComps)) {
       this._drawFootprint(pcbComp);
     }
   }
@@ -1215,36 +1233,55 @@ export class CanvasRenderer {
         }
       }
 
-      // ── Pads ───────────────────────────────────────────────────────────
+      // ── Pads with solder mask and drill ──────────────────────────────
       for (const pad of fp.pads) {
         const px = pad.x * mmToPx;
         const py = pad.y * mmToPx;
         const ps = pad.padstack;
-        const isTH = ps?.mountType === 'TH';
+        const isTH = ps?.type === 'TH';
         const layer = pcbComp.layer || 'F.Cu';
 
         // Pad color by layer
-        const padColor = layer === 'B.Cu' ? C.traceB : C.traceF;
+        const padColor = layer === 'B.Cu' ? '#3366cc' : '#cc3333';
+        const maskColor = layer === 'B.Cu' ? 'rgba(51,102,204,0.25)' : 'rgba(204,51,51,0.25)';
 
-        if (ps?.shape === 'circle') {
+        if (ps?.shape === 'circle' || isTH) {
           // Through-hole circular pad
-          const padR = (ps.width / 2) * mmToPx;
-          const drillR = padR * 0.45;  // drill hole ~45% of pad
+          const padR = Math.max(3, (ps.width / 2) * mmToPx);
+          const drillR = Math.max(1.5, padR * 0.5);
+          const maskR = padR + Math.max(1, 0.1 * mmToPx); // solder mask expansion
 
-          // Copper pad
+          // Solder mask ring (slightly larger, translucent)
+          ctx.fillStyle = maskColor;
+          ctx.beginPath(); ctx.arc(px, py, maskR, 0, Math.PI * 2); ctx.fill();
+
+          // Copper annular ring
           ctx.fillStyle = pcbComp.selected ? C.selected : padColor;
           ctx.beginPath(); ctx.arc(px, py, padR, 0, Math.PI * 2); ctx.fill();
 
-          // Drill hole
-          ctx.fillStyle = C.bg;
-          ctx.beginPath(); ctx.arc(px, py, Math.max(1, drillR), 0, Math.PI * 2); ctx.fill();
+          // Drill hole (dark center)
+          ctx.fillStyle = '#1a1a1a';
+          ctx.beginPath(); ctx.arc(px, py, drillR, 0, Math.PI * 2); ctx.fill();
+
+          // Drill hole border
+          ctx.strokeStyle = '#333';
+          ctx.lineWidth = Math.max(0.5, 0.8 * z);
+          ctx.beginPath(); ctx.arc(px, py, drillR, 0, Math.PI * 2); ctx.stroke();
         } else {
           // SMD rectangular pad
-          const pw = (ps?.width  || 1.4) * mmToPx;
-          const ph = (ps?.height || 1.0) * mmToPx;
+          const pw = Math.max(4, (ps?.width  || 1.4) * mmToPx);
+          const ph = Math.max(3, (ps?.height || 1.0) * mmToPx);
+          const maskExp = Math.max(1, 0.1 * mmToPx);
 
+          // Solder mask (slightly larger)
+          ctx.fillStyle = maskColor;
+          const rr2 = Math.min(pw + maskExp*2, ph + maskExp*2) * 0.15;
+          ctx.beginPath();
+          ctx.roundRect(px - pw/2 - maskExp, py - ph/2 - maskExp, pw + maskExp*2, ph + maskExp*2, rr2);
+          ctx.fill();
+
+          // Copper pad
           ctx.fillStyle = pcbComp.selected ? C.selected : padColor;
-          // Rounded rect for SMD pads
           const rr = Math.min(pw, ph) * 0.15;
           ctx.beginPath();
           ctx.roundRect(px - pw/2, py - ph/2, pw, ph, rr);
@@ -1252,9 +1289,9 @@ export class CanvasRenderer {
         }
 
         // Pad number label
-        if (z > 0.5) {
-          ctx.fillStyle    = isTH ? '#000000' : '#000000';
-          ctx.font         = `bold ${Math.max(5, 6 * z)}px monospace`;
+        if (z > 0.4) {
+          ctx.fillStyle    = isTH ? '#cccccc' : '#ffffff';
+          ctx.font         = `bold ${Math.max(6, 7 * z)}px monospace`;
           ctx.textAlign    = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(String(pad.number), px, py);
@@ -1262,18 +1299,38 @@ export class CanvasRenderer {
         }
       }
     } else {
-      // No footprint data — draw a generic placeholder box
-      const bw = 16 * z, bh = 12 * z;
-      ctx.strokeStyle = pcbComp.selected ? C.selected : '#666';
-      ctx.lineWidth   = Math.max(1, 1.5 * z);
-      ctx.setLineDash([3, 2]);
-      ctx.strokeRect(-bw, -bh, bw * 2, bh * 2);
-      ctx.setLineDash([]);
+      // No footprint data — draw generic footprint based on pin count
+      const pinCount = schComp?.pins?.length || 2;
+      const half = Math.ceil(pinCount / 2);
+      const pitch = 2.54;
+      const totalH = (half - 1) * pitch;
+      const hW = 4 * mmToPx;
+      const hH = (totalH / 2 + 2) * mmToPx;
 
-      // Two placeholder pads
-      ctx.fillStyle = C.traceF;
-      ctx.beginPath(); ctx.arc(-bw * 0.5, 0, 4 * z, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc( bw * 0.5, 0, 4 * z, 0, Math.PI * 2); ctx.fill();
+      // Silkscreen outline
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.lineWidth   = Math.max(1, 1.5 * z);
+      ctx.strokeRect(-hW, -hH, hW * 2, hH * 2);
+
+      // Draw TH pads for each pin
+      const padR = Math.max(3, 0.5 * mmToPx);
+      const drillR = Math.max(1.5, padR * 0.5);
+      for (let i = 0; i < half; i++) {
+        const py = (-totalH / 2 + i * pitch) * mmToPx;
+        // Left column
+        ctx.fillStyle = pcbComp.selected ? C.selected : '#cc3333';
+        ctx.beginPath(); ctx.arc(-3 * mmToPx, py, padR, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath(); ctx.arc(-3 * mmToPx, py, drillR, 0, Math.PI * 2); ctx.fill();
+      }
+      for (let i = 0; i < pinCount - half; i++) {
+        const py = (totalH / 2 - i * pitch) * mmToPx;
+        // Right column
+        ctx.fillStyle = pcbComp.selected ? C.selected : '#cc3333';
+        ctx.beginPath(); ctx.arc(3 * mmToPx, py, padR, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath(); ctx.arc(3 * mmToPx, py, drillR, 0, Math.PI * 2); ctx.fill();
+      }
     }
 
     // ── Component reference label ──────────────────────────────────────
