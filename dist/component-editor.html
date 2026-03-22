@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AltiEDA – Component Editor</title>
+  <style>
+    #editor-workspace { display: flex; height: calc(100vh - 40px); }
+    .editor-panel { flex: 1; display: flex; flex-direction: column; }
+    .editor-toolbar { display: flex; gap: 4px; padding: 6px; background: var(--bg-panel); border-bottom: 1px solid var(--border); }
+    .editor-canvas { flex: 1; background: #0d0d1a; }
+    .divider { width: 4px; background: var(--border); cursor: col-resize; }
+    #export-btn { margin-left: auto; background: var(--accent); border-color: var(--accent); color: #fff; }
+    #mode-tabs { display: flex; }
+    .mode-tab { padding: 6px 16px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text-dim); }
+    .mode-tab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+    #metadata-panel { width: 220px; background: var(--bg-panel); border-left: 1px solid var(--border); padding: 12px; }
+    .meta-label { font-size: 11px; color: var(--text-dim); margin-top: 8px; margin-bottom: 2px; }
+    .meta-input { width: 100%; padding: 4px 8px; background: var(--bg-dark); border: 1px solid var(--border); color: var(--text); border-radius: 3px; font-size: 12px; }
+  </style>
+  <script type="module" crossorigin src="/AltiEDA/assets/editor-fl6qyTeI.js"></script>
+  <link rel="modulepreload" crossorigin href="/AltiEDA/assets/dataModels-rI2VKtYa.js">
+  <link rel="stylesheet" crossorigin href="/AltiEDA/assets/dataModels-CsEqzsSi.css">
+</head>
+<body>
+<div id="app" style="height:100vh;display:flex;flex-direction:column">
+  <header id="toolbar">
+    <div class="toolbar-left">
+      <span class="logo">AltiEDA</span>
+      <span style="color:#888">Component Editor</span>
+    </div>
+    <div id="mode-tabs">
+      <div class="mode-tab active" data-editor="symbol">Symbol Editor</div>
+      <div class="mode-tab" data-editor="footprint">Footprint Editor</div>
+    </div>
+    <div class="toolbar-right">
+      <button id="export-btn" class="tool-btn">Export Package</button>
+    </div>
+  </header>
+
+  <div id="editor-workspace">
+    <!-- Tool panel -->
+    <aside style="width:180px;background:var(--bg-panel);border-right:1px solid var(--border);padding:8px">
+      <div class="sidebar-header" style="margin:-8px -8px 8px">Tools</div>
+      <!-- Symbol tools -->
+      <div id="symbol-tools">
+        <button class="tool-btn" data-tool="select" style="width:100%;margin-bottom:3px">Select</button>
+        <button class="tool-btn" data-tool="line"   style="width:100%;margin-bottom:3px">Line</button>
+        <button class="tool-btn" data-tool="rect"   style="width:100%;margin-bottom:3px">Rectangle</button>
+        <button class="tool-btn" data-tool="circle" style="width:100%;margin-bottom:3px">Circle</button>
+        <button class="tool-btn" data-tool="pin"    style="width:100%;margin-bottom:3px">Pin</button>
+      </div>
+      <!-- Footprint tools (hidden by default) -->
+      <div id="footprint-tools" style="display:none">
+        <button class="tool-btn" data-fptool="smd"        style="width:100%;margin-bottom:3px">SMD Pad</button>
+        <button class="tool-btn" data-fptool="th"         style="width:100%;margin-bottom:3px">TH Pad</button>
+        <button class="tool-btn" data-fptool="courtyard"  style="width:100%;margin-bottom:3px">Courtyard</button>
+        <button class="tool-btn" data-fptool="silk"       style="width:100%;margin-bottom:3px">Silkscreen</button>
+      </div>
+    </aside>
+
+    <!-- Canvas -->
+    <div class="editor-panel">
+      <div class="editor-toolbar">
+        <span id="cursor-pos" style="color:#666;font-size:11px">X:0 Y:0</span>
+      </div>
+      <canvas id="editor-canvas" class="editor-canvas"></canvas>
+    </div>
+
+    <!-- Metadata panel -->
+    <div id="metadata-panel">
+      <div class="sidebar-header" style="margin:-12px -12px 10px">Component Info</div>
+      <div class="meta-label">Part ID</div>
+      <input class="meta-input" id="meta-partId" placeholder="e.g. MY_IC_001" />
+      <div class="meta-label">Part Name</div>
+      <input class="meta-input" id="meta-partName" placeholder="e.g. MyCustomIC" />
+      <div class="meta-label">Category</div>
+      <input class="meta-input" id="meta-category" placeholder="e.g. MCU" />
+      <div class="meta-label">Value</div>
+      <input class="meta-input" id="meta-value" placeholder="e.g. 10k" />
+      <div class="meta-label">Description</div>
+      <textarea class="meta-input" id="meta-desc" rows="3" placeholder="Describe the component…"></textarea>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
