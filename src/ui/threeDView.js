@@ -169,19 +169,123 @@ export class ThreeDView {
       const fp = FOOTPRINT_MAP[pcbComp.footprintId];
       if (!fp) continue;
       const b = fp.body3d;
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0x1a1a2e, roughness: 0.7, metalness: 0.1,
-      });
-      const geo  = new THREE.BoxGeometry(b.width * mm, b.height * mm, b.depth * mm);
+
+      // Use per-component material properties from footprint data
+      const matProps = {
+        color:     b.color ?? 0x1a1a2e,
+        roughness: b.roughness ?? 0.7,
+        metalness: b.metalness ?? 0.1,
+      };
+      if (b.emissive != null) {
+        matProps.emissive = b.emissive;
+        matProps.emissiveIntensity = b.emissiveIntensity ?? 0.5;
+      }
+      const mat = new THREE.MeshStandardMaterial(matProps);
+
+      // Use cylinder for round packages (buzzers, etc.)
+      let geo;
+      if (b.shape === 'cylinder') {
+        geo = new THREE.CylinderGeometry(b.width / 2 * mm, b.width / 2 * mm, b.depth * mm, 32);
+      } else {
+        geo = new THREE.BoxGeometry(b.width * mm, b.height * mm, b.depth * mm);
+      }
+
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(
         pcbComp.x * mm,
         pcbComp.y * mm,
         totalZ + (b.depth / 2) + (b.offsetZ ?? 0)
       );
+      if (b.shape === 'cylinder') {
+        mesh.rotation.x = Math.PI / 2; // stand upright
+      }
       mesh.castShadow    = true;
       mesh.receiveShadow = true;
       this.scene.add(mesh);
+
+      // Render metal tab for TO-220 packages
+      if (b.tabColor != null) {
+        const tabMat = new THREE.MeshStandardMaterial({
+          color: b.tabColor, metalness: 0.8, roughness: 0.3,
+        });
+        const tabGeo = new THREE.BoxGeometry(b.width * mm, 0.5, (b.depth - 2) * mm);
+        const tabMesh = new THREE.Mesh(tabGeo, tabMat);
+        tabMesh.position.set(
+          pcbComp.x * mm,
+          pcbComp.y * mm - b.height / 2 * mm - 0.25,
+          totalZ + (b.depth / 2) + (b.offsetZ ?? 0)
+        );
+        tabMesh.castShadow = true;
+        this.scene.add(tabMesh);
+      }
+
+      // Render cap/button accent (e.g. tactile switch)
+      if (b.capColor != null) {
+        const capMat = new THREE.MeshStandardMaterial({
+          color: b.capColor, roughness: 0.5,
+        });
+        const capSize = Math.min(b.width, b.height) * 0.45;
+        const capGeo = new THREE.CylinderGeometry(capSize * mm, capSize * mm, 1.5, 16);
+        const capMesh = new THREE.Mesh(capGeo, capMat);
+        capMesh.position.set(
+          pcbComp.x * mm,
+          pcbComp.y * mm,
+          totalZ + b.depth + 0.75 + (b.offsetZ ?? 0)
+        );
+        capMesh.rotation.x = Math.PI / 2;
+        this.scene.add(capMesh);
+      }
+
+      // Render screen area for display modules
+      if (b.screenColor != null) {
+        const screenMat = new THREE.MeshStandardMaterial({
+          color: b.screenColor, emissive: b.screenColor,
+          emissiveIntensity: 0.3, roughness: 0.9,
+        });
+        const sw = b.width * 0.8, sh = b.height * 0.6;
+        const screenGeo = new THREE.BoxGeometry(sw * mm, sh * mm, 0.1);
+        const screenMesh = new THREE.Mesh(screenGeo, screenMat);
+        screenMesh.position.set(
+          pcbComp.x * mm,
+          pcbComp.y * mm,
+          totalZ + b.depth + 0.05 + (b.offsetZ ?? 0)
+        );
+        this.scene.add(screenMesh);
+      }
+
+      // Render RF shield for modules (ESP32, ESP8266)
+      if (b.shieldColor != null) {
+        const shieldMat = new THREE.MeshStandardMaterial({
+          color: b.shieldColor, metalness: 0.7, roughness: 0.3,
+        });
+        const sw = b.width * 0.55, sh = b.height * 0.5;
+        const shieldGeo = new THREE.BoxGeometry(sw * mm, sh * mm, (b.depth + 0.2) * mm);
+        const shieldMesh = new THREE.Mesh(shieldGeo, shieldMat);
+        shieldMesh.position.set(
+          pcbComp.x * mm,
+          pcbComp.y * mm - b.height * 0.15,
+          totalZ + (b.depth / 2) + (b.offsetZ ?? 0)
+        );
+        shieldMesh.castShadow = true;
+        this.scene.add(shieldMesh);
+      }
+
+      // Render gold pins for connectors
+      if (b.pinColor != null && fp.pads) {
+        const pinMat = new THREE.MeshStandardMaterial({
+          color: b.pinColor, metalness: 0.9, roughness: 0.2,
+        });
+        for (const pad of fp.pads) {
+          const pinGeo = new THREE.BoxGeometry(0.64, 0.64, b.depth * mm);
+          const pinMesh = new THREE.Mesh(pinGeo, pinMat);
+          pinMesh.position.set(
+            (pcbComp.x + pad.x) * mm,
+            (pcbComp.y + pad.y) * mm,
+            totalZ + (b.depth / 2) + (b.offsetZ ?? 0)
+          );
+          this.scene.add(pinMesh);
+        }
+      }
     }
   }
 

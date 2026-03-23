@@ -27,6 +27,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Passive',
     defaultValue: '10k',
     footprintId:  'R_0805',
+    datasheet:    'https://www.yageo.com/upload/media/product/productsearch/datasheet/rchip/PYu-RC_Group_51_RoHS_L_12.pdf',
     spiceModel:   { type: 'R', directive: null },
     pins: [
       P(1, 'P1', PinType.PASSIVE, -30, 0),
@@ -39,6 +40,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Passive',
     defaultValue: '100nF',
     footprintId:  'C_0805',
+    datasheet:    'https://www.samsung.com/semiconductor/minisite/samsungsemiconductor/file/resource/semiconductor-document/CL21B104KBCNNNC.pdf',
     spiceModel:   { type: 'C', directive: null },
     pins: [
       P(1, 'P1', PinType.PASSIVE, -20, 0),
@@ -51,6 +53,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Passive',
     defaultValue: '10uH',
     footprintId:  'L_0805',
+    datasheet:    'https://www.murata.com/products/productdata/8796738650142/ENFA0005.pdf',
     spiceModel:   { type: 'L', directive: null },
     pins: [
       P(1, 'P1', PinType.PASSIVE, -30, 0),
@@ -63,6 +66,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Passive',
     defaultValue: 'RED',
     footprintId:  'LED_0805',
+    datasheet:    'https://www.kingbrightusa.com/images/catalog/SPEC/APTD2012SRCPRV.pdf',
     spiceModel:   { type: 'D', directive: '.model DLED D(Is=1e-10 N=2 RS=1)' },
     pins: [
       P(1, 'A',  PinType.PASSIVE, -24, 0),
@@ -75,6 +79,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Passive',
     defaultValue: '1A/1kV',
     footprintId:  'D_DO41',
+    datasheet:    'https://www.vishay.com/docs/88503/1n4001.pdf',
     spiceModel:   { type: 'D', directive: '.model D1N4007 D(Is=76.9n N=1.45 Rs=42m)' },
     pins: [
       P(1, 'A', PinType.PASSIVE, -24, 0),
@@ -87,6 +92,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Passive',
     defaultValue: '5.1V',
     footprintId:  'D_DO35',
+    datasheet:    'https://www.vishay.com/docs/85816/1n4728a.pdf',
     spiceModel:   { type: 'D', directive: '.model DZENER D(Is=1e-10 BV=5.1)' },
     pins: [
       P(1, 'A', PinType.PASSIVE, -24, 0),
@@ -99,6 +105,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Passive',
     defaultValue: '1N5819',
     footprintId:  'D_DO41',
+    datasheet:    'https://www.vishay.com/docs/88525/1n5817.pdf',
     spiceModel:   { type: 'D', directive: '.model D1N5819 D(Is=2.8u N=1.03 Rs=0.03)' },
     pins: [
       P(1, 'A', PinType.PASSIVE, -24, 0),
@@ -111,6 +118,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Passive',
     defaultValue: 'BC547',
     footprintId:  'TO92',
+    datasheet:    'https://www.onsemi.com/download/data-sheet/pdf/bc546-d.pdf',
     spiceModel:   { type: 'Q', directive: '.model BC547 NPN(BF=400 IS=1e-14 VAF=100)' },
     pins: [
       P(1, 'B', PinType.PASSIVE, -20, 0),
@@ -124,6 +132,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Passive',
     defaultValue: 'BC557',
     footprintId:  'TO92',
+    datasheet:    'https://www.onsemi.com/download/data-sheet/pdf/bc556b-d.pdf',
     spiceModel:   { type: 'Q', directive: '.model BC557 PNP(BF=200 IS=1e-14 VAF=100)' },
     pins: [
       P(1, 'B', PinType.PASSIVE, -20,  0),
@@ -137,6 +146,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Passive',
     defaultValue: '2N7000',
     footprintId:  'TO92',
+    datasheet:    'https://www.onsemi.com/download/data-sheet/pdf/2n7000-d.pdf',
     spiceModel:   { type: 'M', directive: '.model 2N7000 NMOS(VTO=1.8 KP=0.08)' },
     pins: [
       P(1, 'G', PinType.INPUT,   -24, 0),
@@ -150,6 +160,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Passive',
     defaultValue: 'TACT',
     footprintId:  'SW_TACT_6mm',
+    datasheet:    'https://omronfs.omron.com/en_US/ecb/products/pdf/en-b3f.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'A1', PinType.PASSIVE, -20, -10),
@@ -164,6 +175,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Passive',
     defaultValue: '16MHz',
     footprintId:  'Crystal_HC49',
+    datasheet:    'https://abracon.com/Resonators/abs07.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'XIN',  PinType.PASSIVE, -24, 0),
@@ -176,6 +188,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Passive',
     defaultValue: '5V',
     footprintId:  'Buzzer_12mm',
+    datasheet:    'https://www.murata.com/products/productdata/8797589348382/MASPK0001.pdf',
     spiceModel:   null,
     pins: [
       P(1, '+', PinType.POWER_IN, -16, 0),
@@ -208,6 +221,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Power',
     defaultValue: '5V/1A',
     footprintId:  'TO220-3',
+    datasheet:    'https://www.ti.com/lit/ds/symlink/lm340.pdf',
     spiceModel:   { type: 'X', directive: '.subckt LM7805 IN GND OUT' },
     pins: [
       P(1, 'IN',  PinType.POWER_IN,   -30,  0),
@@ -221,6 +235,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Power',
     defaultValue: 'ADJ',
     footprintId:  'TO220-3',
+    datasheet:    'https://www.ti.com/lit/ds/symlink/lm317.pdf',
     spiceModel:   { type: 'X', directive: '.subckt LM317 IN ADJ OUT' },
     pins: [
       P(1, 'ADJ', PinType.INPUT,       0, 28),
@@ -234,6 +249,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Power',
     defaultValue: '3.3V LDO',
     footprintId:  'SOT223',
+    datasheet:    'http://www.advanced-monolithic.com/pdf/ds1117.pdf',
     spiceModel:   { type: 'X', directive: '.subckt AMS1117 IN GND OUT' },
     pins: [
       P(1, 'GND', PinType.POWER_IN,   -30, 0),
@@ -250,6 +266,7 @@ export const COMPONENT_LIBRARY = [
     category:     'MCU',
     defaultValue: '',
     footprintId:  'ESP32_WROOM_32',
+    datasheet:    'https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32_datasheet_en.pdf',
     spiceModel:   null,
     pins: [
       P(1,  'GND',         PinType.POWER_IN,      -40, -60),
@@ -288,6 +305,7 @@ export const COMPONENT_LIBRARY = [
     category:     'MCU',
     defaultValue: 'ATmega328P',
     footprintId:  'Arduino_UNO_R3',
+    datasheet:    'https://docs.arduino.cc/resources/datasheets/A000066-datasheet.pdf',
     spiceModel:   null,
     pins: [
       ...rowL(1,
@@ -308,6 +326,7 @@ export const COMPONENT_LIBRARY = [
     category:     'MCU',
     defaultValue: 'ATmega328P',
     footprintId:  'Arduino_Nano',
+    datasheet:    'https://docs.arduino.cc/resources/datasheets/A000005-datasheet.pdf',
     spiceModel:   null,
     pins: [
       ...rowL(1,
@@ -327,6 +346,7 @@ export const COMPONENT_LIBRARY = [
     category:     'MCU',
     defaultValue: 'ATmega2560',
     footprintId:  'Arduino_MEGA2560_R3',
+    datasheet:    'https://docs.arduino.cc/resources/datasheets/A000067-datasheet.pdf',
     spiceModel:   null,
     pins: [
       ...rowL(1,
@@ -345,6 +365,7 @@ export const COMPONENT_LIBRARY = [
     category:     'MCU',
     defaultValue: 'ESP8266',
     footprintId:  'ESP8266-12F',
+    datasheet:    'https://www.espressif.com/sites/default/files/documentation/0a-esp8266ex_datasheet_en.pdf',
     spiceModel:   null,
     pins: [
       ...rowL(1,
@@ -363,6 +384,7 @@ export const COMPONENT_LIBRARY = [
     category:     'MCU',
     defaultValue: 'BluePill',
     footprintId:  'LQFP48',
+    datasheet:    'https://www.st.com/resource/en/datasheet/stm32f103c8.pdf',
     spiceModel:   null,
     pins: [
       ...rowL(1,
@@ -381,6 +403,7 @@ export const COMPONENT_LIBRARY = [
     category:     'MCU',
     defaultValue: '8MHz',
     footprintId:  'DIP8',
+    datasheet:    'https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'RESET/PB5', PinType.INPUT,  -30, -21),
@@ -399,6 +422,7 @@ export const COMPONENT_LIBRARY = [
     category:     'MCU',
     defaultValue: 'RP2040',
     footprintId:  'RPi_Pico',
+    datasheet:    'https://datasheets.raspberrypi.com/pico/pico-datasheet.pdf',
     spiceModel:   null,
     pins: [
       ...rowL(1,
@@ -418,6 +442,7 @@ export const COMPONENT_LIBRARY = [
     category:     'MCU',
     defaultValue: '16MHz',
     footprintId:  'DIP28',
+    datasheet:    'https://ww1.microchip.com/downloads/en/DeviceDoc/ATmega48A-PA-88A-PA-168A-PA-328-P-DS-DS40002061B.pdf',
     spiceModel:   null,
     pins: [
       ...rowL(1,
@@ -438,6 +463,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Sensor',
     defaultValue: 'Temp/Hum/Press',
     footprintId:  'BME280_LGA8',
+    datasheet:    'https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'VCC',  PinType.POWER_IN,      -30, -20),
@@ -455,6 +481,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Sensor',
     defaultValue: 'Temp/Humidity',
     footprintId:  'DHT22',
+    datasheet:    'https://www.sparkfun.com/datasheets/Sensors/Temperature/DHT22.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'VCC',  PinType.POWER_IN,   -30, -15),
@@ -469,6 +496,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Sensor',
     defaultValue: 'Ultrasonic',
     footprintId:  'HC_SR04',
+    datasheet:    'https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'VCC',   PinType.POWER_IN,   -30, -15),
@@ -483,6 +511,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Sensor',
     defaultValue: '6-axis IMU',
     footprintId:  'QFN24',
+    datasheet:    'https://invensense.tdk.com/wp-content/uploads/2015/02/MPU-6000-Datasheet1.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'VCC',   PinType.POWER_IN,      -35, -28),
@@ -499,6 +528,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Sensor',
     defaultValue: '1-Wire Temp',
     footprintId:  'TO92',
+    datasheet:    'https://datasheets.maximintegrated.com/en/ds/DS18B20.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'GND',  PinType.POWER_IN,      -25, 0),
@@ -512,6 +542,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Sensor',
     defaultValue: '10k@lux',
     footprintId:  'R_TH_5mm',
+    datasheet:    'https://www.token.com.tw/pdf/resistor/cds-resistor-pgm.pdf',
     spiceModel:   { type: 'R', directive: null },
     pins: [
       P(1, 'P1', PinType.PASSIVE, -20, 0),
@@ -524,6 +555,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Sensor',
     defaultValue: '10k@25°C',
     footprintId:  'R_TH_5mm',
+    datasheet:    'https://www.vishay.com/docs/29049/ntcle100.pdf',
     spiceModel:   { type: 'R', directive: null },
     pins: [
       P(1, 'P1', PinType.PASSIVE, -20, 0),
@@ -536,6 +568,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Sensor',
     defaultValue: 'Motion',
     footprintId:  'HC_SR501',
+    datasheet:    'https://www.mpja.com/download/31227sc.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'VCC', PinType.POWER_IN,   -25, 0),
@@ -551,6 +584,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Display',
     defaultValue: '128x64 I2C',
     footprintId:  'OLED_0.96in',
+    datasheet:    'https://cdn-shop.adafruit.com/datasheets/SSD1306.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'VCC', PinType.POWER_IN,   -30, -15),
@@ -565,6 +599,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Display',
     defaultValue: 'Character LCD',
     footprintId:  'LCD_16x2',
+    datasheet:    'https://www.sparkfun.com/datasheets/LCD/HD44780.pdf',
     spiceModel:   null,
     pins: [
       ...rowL(1,
@@ -585,6 +620,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Driver',
     defaultValue: 'Motor Driver',
     footprintId:  'DIP16',
+    datasheet:    'https://www.ti.com/lit/ds/symlink/l293d.pdf',
     spiceModel:   null,
     pins: [
       P(1,  'EN1',  PinType.INPUT,   -40, -49),
@@ -611,6 +647,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Driver',
     defaultValue: 'Darlington',
     footprintId:  'DIP16',
+    datasheet:    'https://www.ti.com/lit/ds/symlink/uln2003a.pdf',
     spiceModel:   null,
     pins: [
       ...rowL(1,  ['IN1','IN2','IN3','IN4','IN5','IN6','IN7','COM'], Array(7).fill(PinType.INPUT).concat([PinType.POWER_IN])),
@@ -625,6 +662,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Connector',
     defaultValue: 'JST/Header',
     footprintId:  'Connector_2pin_2.54mm',
+    datasheet:    'https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/908/M20-999.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'P1', PinType.PASSIVE, -25, -7),
@@ -637,6 +675,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Connector',
     defaultValue: '2.54mm',
     footprintId:  'Connector_3pin_2.54mm',
+    datasheet:    'https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/908/M20-999.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'P1', PinType.PASSIVE, -25, -14),
@@ -650,6 +689,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Connector',
     defaultValue: '2.54mm',
     footprintId:  'Connector_4pin_2.54mm',
+    datasheet:    'https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/908/M20-999.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'P1', PinType.PASSIVE, -25, -21),
@@ -664,6 +704,7 @@ export const COMPONENT_LIBRARY = [
     category:     'Connector',
     defaultValue: 'USB 2.0',
     footprintId:  'USB_Micro_B',
+    datasheet:    'https://www.molex.com/pdm_docs/sd/1050170001_sd.pdf',
     spiceModel:   null,
     pins: [
       P(1, 'VBUS', PinType.POWER_IN,   -30, -14),
