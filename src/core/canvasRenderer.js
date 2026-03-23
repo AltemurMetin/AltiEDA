@@ -333,13 +333,6 @@ export class CanvasRenderer {
       ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
     }
     ctx.lineWidth = lw;
-    // PCB traces
-    for (const t of Object.values(state.pcb.traces)) {
-      const p1 = this.w2s(t.x1, t.y1), p2 = this.w2s(t.x2, t.y2);
-      ctx.strokeStyle = t.layer === 'F.Cu' ? C.traceF : C.traceB;
-      ctx.lineWidth   = Math.max(2, t.width * GRID * this.zoom);
-      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
-    }
   }
 
   /* ── Wire preview (while placing) ──────────────────────────────────────── */

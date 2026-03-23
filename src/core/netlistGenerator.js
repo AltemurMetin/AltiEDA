@@ -164,5 +164,6 @@ export function switchToPCBMode(renderer) {
 export function switchToSchematicMode(renderer) {
   state.mode = 'schematic';
   if (renderer.applyTheme) renderer.applyTheme('schematic');
-  renderer.render();
+  if (renderer.fitAll) renderer.fitAll();
+  else renderer.render();
 }
