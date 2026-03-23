@@ -93,6 +93,54 @@ export function applyTheme(mode) {
 const GRID = 20;       // px per grid unit at zoom=1 (≈ 2.54mm)
 const PIN_R = 3;
 
+// ── Resistor color-band helper ───────────────────────────────────────────────
+const BAND_COLORS = [
+  '#000000', // 0 – Black
+  '#8B4513', // 1 – Brown
+  '#FF0000', // 2 – Red
+  '#FF8C00', // 3 – Orange
+  '#FFD700', // 4 – Yellow
+  '#228B22', // 5 – Green
+  '#0000FF', // 6 – Blue
+  '#8B00FF', // 7 – Violet
+  '#808080', // 8 – Grey
+  '#FFFFFF', // 9 – White
+];
+const MULT_COLORS = {
+  0: '#000000', 1: '#8B4513', 2: '#FF0000', 3: '#FF8C00',
+  4: '#FFD700', 5: '#228B22', 6: '#0000FF', 7: '#8B00FF',
+  '-1': '#FFD700', // Gold  (×0.1)
+  '-2': '#C0C0C0', // Silver (×0.01)
+};
+const TOLERANCE_GOLD = '#CFB53B';
+
+/** Parse a resistor value string (e.g. "4.7kΩ", "470", "1M") → 4-band color array */
+function _resistorColorBands(val) {
+  if (!val) return [];
+  // Normalise: strip Ω/ohm, lowercase
+  let s = val.replace(/[Ωω\s]/gi, '').trim();
+  // Multiplier suffixes
+  let mult = 1;
+  if (/k$/i.test(s)) { mult = 1e3; s = s.slice(0, -1); }
+  else if (/m$/i.test(s)) { mult = 1e6; s = s.slice(0, -1); }
+  const num = parseFloat(s);
+  if (isNaN(num) || num <= 0) return [];
+  const ohms = num * mult;
+
+  // Get two significant digits and the multiplier exponent
+  // e.g. 4700 → digits 47, exp 2 (×10^2)
+  let exp = Math.floor(Math.log10(ohms));
+  if (exp < 0) exp = 0;
+  const sigExp = exp - 1; // for 2-digit significant
+  const sig = Math.round(ohms / Math.pow(10, Math.max(sigExp, 0)));
+  const d1 = Math.floor(sig / 10) % 10;
+  const d2 = sig % 10;
+  const multiplier = Math.max(sigExp, -2);
+
+  const mColor = MULT_COLORS[multiplier] ?? MULT_COLORS[0];
+  return [BAND_COLORS[d1], BAND_COLORS[d2], mColor, TOLERANCE_GOLD];
+}
+
 export class CanvasRenderer {
   constructor(el) {
     this.canvas = el;
@@ -414,7 +462,7 @@ export class CanvasRenderer {
      SCHEMATIC SYMBOLS
   ────────────────────────────────────────────────────────────────────────── */
 
-  /* Resistor – American zigzag style */
+  /* Resistor – IEC rectangular body with color bands */
   _symResistor(comp) {
     const { ctx } = this;
     const z = this.zoom;
@@ -423,28 +471,50 @@ export class CanvasRenderer {
     const bh = 6 * z;    // body half-height
     const lead = 12 * z; // lead length
 
-    ctx.strokeStyle = comp.selected ? C.selected : C.symR;
+    const col = comp.selected ? C.selected : C.symR;
+    ctx.strokeStyle = col;
     ctx.lineWidth   = lw;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Left lead
+    // Leads (wires)
     ctx.beginPath(); ctx.moveTo(-(bw + lead), 0); ctx.lineTo(-bw, 0); ctx.stroke();
-    // Right lead
     ctx.beginPath(); ctx.moveTo(bw, 0); ctx.lineTo(bw + lead, 0); ctx.stroke();
 
-    // Zigzag body
-    const peaks = 6;
-    const pw = (bw * 2) / peaks;
+    // Resistor body – tan/beige rectangle
+    const bodyColor = '#d2b48c';
+    ctx.fillStyle = bodyColor;
     ctx.beginPath();
-    ctx.moveTo(-bw, 0);
-    for (let i = 0; i < peaks; i++) {
-      const x = -bw + pw * (i + 0.5);
-      const y = (i % 2 === 0) ? -bh : bh;
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(bw, 0);
+    ctx.roundRect(-bw, -bh, bw * 2, bh * 2, 2 * z);
+    ctx.fill();
+    ctx.strokeStyle = '#8B7355';
+    ctx.lineWidth = Math.max(1, 1.2 * z);
     ctx.stroke();
+
+    // Color bands from value
+    const bands = _resistorColorBands(comp.value);
+    if (bands.length >= 3) {
+      const bandW = Math.max(2, 3 * z);   // band width
+      const totalBands = bands.length;
+      // Position bands evenly across the body
+      const startX = -bw + bw * 0.3;
+      const endX   =  bw - bw * 0.25;
+      const spacing = (endX - startX) / (totalBands - 1);
+
+      for (let i = 0; i < totalBands; i++) {
+        const bx = startX + spacing * i;
+        ctx.fillStyle = bands[i];
+        ctx.fillRect(bx - bandW / 2, -bh + 1 * z, bandW, bh * 2 - 2 * z);
+        // Subtle border on each band for contrast
+        ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+        ctx.lineWidth = Math.max(0.5, 0.5 * z);
+        ctx.strokeRect(bx - bandW / 2, -bh + 1 * z, bandW, bh * 2 - 2 * z);
+      }
+    }
+
+    // Restore stroke for pins
+    ctx.strokeStyle = col;
+    ctx.lineWidth = lw;
 
     // Pin dots
     this._pinDot(-(bw + lead), 0, comp.selected);
