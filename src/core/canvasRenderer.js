@@ -245,6 +245,13 @@ export class CanvasRenderer {
     this._raf = requestAnimationFrame(() => this._draw());
   }
 
+  /** Synchronous draw — used when switching modes to avoid 1-frame stale content */
+  renderImmediate() {
+    if (this._raf) cancelAnimationFrame(this._raf);
+    this._raf = null;
+    this._draw();
+  }
+
   _draw() {
     const { ctx, canvas } = this;
     ctx.fillStyle = C.bg;

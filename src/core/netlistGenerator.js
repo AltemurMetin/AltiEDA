@@ -165,5 +165,6 @@ export function switchToSchematicMode(renderer) {
   state.mode = 'schematic';
   if (renderer.applyTheme) renderer.applyTheme('schematic');
   if (renderer.fitAll) renderer.fitAll();
-  else renderer.render();
+  // Synchronous draw to immediately clear stale PCB board from canvas
+  if (renderer.renderImmediate) renderer.renderImmediate();
 }
