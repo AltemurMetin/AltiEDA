@@ -103,6 +103,9 @@ export class ThreeDView {
     // Vias
     this._drawVias3D(stackupData, currentZ);
 
+    // Copper pours
+    this._drawCopperPours3D(stackupData, currentZ);
+
     // Components
     this._drawComponents3D(currentZ);
 
@@ -286,6 +289,91 @@ export class ThreeDView {
           this.scene.add(pinMesh);
         }
       }
+
+      // Render silkscreen text label on top of component
+      this._addComponentLabel(pcbComp, b, totalZ, mm);
+
+      // Render solder joints at pads
+      this._addSolderJoints(pcbComp, fp, totalZ, mm);
+    }
+  }
+
+  _addComponentLabel(pcbComp, b, totalZ, mm) {
+    // Create a simple plane with text-like visual for the component reference
+    const labelMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.8, side: THREE.DoubleSide,
+    });
+    const labelW = Math.min(b.width * 0.8, 6) * mm;
+    const labelH = Math.min(b.height * 0.2, 1.5) * mm;
+    const labelGeo = new THREE.PlaneGeometry(labelW, labelH);
+    const labelMesh = new THREE.Mesh(labelGeo, labelMat);
+    labelMesh.position.set(
+      pcbComp.x * mm,
+      pcbComp.y * mm,
+      totalZ + b.depth + 0.02 + (b.offsetZ ?? 0)
+    );
+    labelMesh.rotation.x = 0; // face up
+    this.scene.add(labelMesh);
+  }
+
+  _addSolderJoints(pcbComp, fp, totalZ, mm) {
+    const solderMat = new THREE.MeshStandardMaterial({
+      color: 0xc0c0c0, metalness: 0.6, roughness: 0.4,
+    });
+    for (const pad of fp.pads) {
+      const size = Math.min(pad.padstack.width, pad.padstack.height) * 0.4;
+      const solderGeo = new THREE.SphereGeometry(size * mm * 0.5, 8, 6);
+      const solderMesh = new THREE.Mesh(solderGeo, solderMat);
+      solderMesh.position.set(
+        (pcbComp.x + pad.x) * mm,
+        (pcbComp.y + pad.y) * mm,
+        totalZ + 0.02
+      );
+      solderMesh.scale.z = 0.4; // flatten
+      this.scene.add(solderMesh);
+    }
+  }
+
+  _drawCopperPours3D(stackupData, totalZ) {
+    const pourMat = new THREE.MeshStandardMaterial({
+      color: 0xc87533, metalness: 0.7, roughness: 0.3,
+      transparent: true, opacity: 0.6,
+    });
+
+    for (const polygon of (state.pcb.polygons || [])) {
+      if (polygon.type !== 'copper_pour' || !polygon.boundary) continue;
+      const layerZ = this._layerZ(polygon.layer, stackupData, totalZ);
+
+      // Create shape from boundary
+      const shape = new THREE.Shape();
+      const pts = polygon.boundary;
+      if (pts.length < 3) continue;
+      shape.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) {
+        shape.lineTo(pts[i].x, pts[i].y);
+      }
+      shape.closePath();
+
+      // Add holes for exclusion zones (pads from other nets)
+      for (const excl of (polygon.exclusions || [])) {
+        if (excl.type === 'pad' || excl.type === 'via') {
+          const hole = new THREE.Path();
+          const r = Math.max(excl.width, excl.height) / 2;
+          const segs = 12;
+          for (let i = 0; i <= segs; i++) {
+            const a = (i / segs) * Math.PI * 2;
+            const px = excl.x + r * Math.cos(a);
+            const py = excl.y + r * Math.sin(a);
+            i === 0 ? hole.moveTo(px, py) : hole.lineTo(px, py);
+          }
+          shape.holes.push(hole);
+        }
+      }
+
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.035, bevelEnabled: false });
+      const mesh = new THREE.Mesh(geo, pourMat);
+      mesh.position.z = layerZ + 0.001;
+      this.scene.add(mesh);
     }
   }
 

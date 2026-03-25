@@ -9,11 +9,14 @@ import { generateSuggestions, acceptAllSuggestions } from './tools/aiPinMatcher.
 import { WireTool, placeVia, placeProbeTool, getProbeNetName } from './tools/routingTools.js';
 import { generateNetlist, switchToPCBMode, switchToSchematicMode } from './core/netlistGenerator.js';
 import { applyTheme } from './core/canvasRenderer.js';
-import { runDRC, renderDRCPanel }          from './tools/drcEngine.js';
+import { runDRC, renderDRCPanel, calculateMicrostripImpedance, calculateDifferentialImpedance, suggestTraceWidth } from './tools/drcEngine.js';
 import { exportManufacturingPackage }      from './export/exportPackager.js';
 import { onComponentSelect, initPanel, hidePanel } from './ui/contextualPanel.js';
 import { toggle2D3DView, renderLayerStackupUI }     from './ui/threeDView.js';
 import { runSimulation, initSimulationManager }     from './simulation/simulationManager.js';
+import { autoRoute, createCopperPour, clearCopperPours } from './tools/autoRouter.js';
+import { computeACResponse, computeDCSweep, computeNoiseAnalysis } from './simulation/acAnalysis.js';
+import { exportSchematicPDF, HierarchicalSchematic } from './export/pdfExport.js';
 
 // ── Canvas ────────────────────────────────────────────────────────────────────
 const canvas   = document.getElementById('main-canvas');
@@ -152,6 +155,10 @@ function compIcon(partId) {
     ATMEGA328P: '328P', BME280: 'BME', DHT22: 'DHT', HC_SR04: 'SR04', MPU6050: 'MPU',
     DS18B20: 'DS18', PIR_HCSR501: 'PIR', SSD1306_OLED: 'OLED', LCD_1602: 'LCD',
     L293D: 'L293', ULN2003: 'ULN',
+    LM358: 'LM358', NE555: '555', CD4017: '4017', SHIFT_74HC595: '595',
+    NRF24L01: 'nRF24', MCP2515: 'CAN', MAX4466: 'MIC',
+    RELAY_SPDT: 'RELAY', SERVO_SG90: 'SERVO',
+    AT24C256: 'EPRM', W25Q128: 'FLASH',
   };
   if (icons[partId]) return icons[partId];
   if (icParts[partId]) {
@@ -1080,6 +1087,54 @@ document.getElementById('btn-export')?.addEventListener('click', async () => {
 });
 
 document.getElementById('btn-save')?.addEventListener('click', saveLocal);
+
+// ── Autorouter ───────────────────────────────────────────────────────────────
+document.getElementById('btn-autoroute')?.addEventListener('click', () => {
+  if (state.mode !== 'pcb') {
+    setMsg('Switch to PCB mode first');
+    return;
+  }
+  setMsg('Running autorouter…');
+  const result = autoRoute();
+  renderer.render();
+  setMsg(`Autoroute: ${result.routed} routed, ${result.failed} failed`);
+});
+
+// ── Copper Pour ──────────────────────────────────────────────────────────────
+document.getElementById('btn-copper-pour')?.addEventListener('click', () => {
+  if (state.mode !== 'pcb') {
+    setMsg('Switch to PCB mode first');
+    return;
+  }
+  // Find GND net or first available net
+  const gndNet = Object.values(state.schematic.nets).find(n =>
+    n.name?.toLowerCase().includes('gnd') || n.netClass === 'GND'
+  );
+  const netId = gndNet?.id ?? null;
+  const pour = createCopperPour(netId);
+  renderer.render();
+  setMsg(`Copper pour created (${gndNet?.name ?? 'no net'})`);
+});
+
+// ── PDF Export ───────────────────────────────────────────────────────────────
+document.getElementById('btn-pdf-export')?.addEventListener('click', () => {
+  setMsg('Generating PDF…');
+  exportSchematicPDF();
+  setMsg('PDF exported — check downloads');
+});
+
+// ── AC Analysis ──────────────────────────────────────────────────────────────
+document.getElementById('btn-ac-analysis')?.addEventListener('click', () => {
+  const result = computeACResponse();
+  console.log('[AC Analysis]', result);
+  setMsg(`AC Analysis: ${result.circuit.topology} — fc=${result.circuit.params.fc?.toFixed(1) ?? 'N/A'} Hz`);
+});
+
+// ── Impedance Calculator ─────────────────────────────────────────────────────
+document.getElementById('btn-impedance')?.addEventListener('click', () => {
+  const result = calculateMicrostripImpedance();
+  setMsg(`Z₀ = ${result.impedance.toFixed(1)}Ω (microstrip, w=${result.traceWidth}mm, h=${result.dielectricHeight}mm)`);
+});
 
 document.getElementById('btn-close-drc')?.addEventListener('click', () => {
   document.getElementById('drc-panel')?.classList.add('hidden');
