@@ -273,10 +273,14 @@ canvas.addEventListener('mousedown', e => {
   if (hit) {
     // Deselect others
     Object.values(state.schematic.components).forEach(c => c.selected = false);
+    Object.values(state.schematic.wires).forEach(w => { w.selected = false; });
+    Object.values(state.pcb.vias).forEach(v => { v.selected = false; });
+    _selectedWireId = null;
+    _selectedViaId  = null;
     startCompDrag(hit, e.clientX, e.clientY);
     renderer.render();
   }
-  // If no hit, left-click on empty canvas = deselect all on mouseup (handled below)
+  // If no component hit, check wire/via selection (no tool needed)
 });
 
 canvas.addEventListener('mousemove', e => {
@@ -318,13 +322,36 @@ canvas.addEventListener('mouseup', e => {
   }
   if (_pan) { _pan = false; _panPt = null; return; }
 
-  // Click on empty canvas with no tool = deselect all
+  // Click on canvas with no tool = try to select wire/via, or deselect all
   if (e.button === 0 && !activeTool) {
     const rect  = canvas.getBoundingClientRect();
     const world = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
     if (!hitTest(world.x, world.y)) {
+      // Deselect everything first
       Object.values(state.schematic.components).forEach(c => c.selected = false);
-      hidePanel();
+      Object.values(state.schematic.wires).forEach(w => { w.selected = false; });
+      Object.values(state.pcb.vias).forEach(v => { v.selected = false; });
+      _selectedWireId = null;
+      _selectedViaId  = null;
+      hideCompActions();
+
+      // Try wire hit
+      const wireHit = renderer.wireHitTest(world.x, world.y);
+      if (wireHit) {
+        wireHit.selected = true;
+        _selectedWireId  = wireHit.id;
+        setMsg('Wire selected — Del to delete, ESC to deselect');
+      } else {
+        // Try via hit
+        const viaHit = renderer.viaHitTest(world.x, world.y);
+        if (viaHit) {
+          viaHit.selected = true;
+          _selectedViaId  = viaHit.id;
+          setMsg('Via selected — Del to delete, ESC to deselect');
+        } else {
+          hidePanel();
+        }
+      }
       renderer.render();
     }
   }
@@ -913,9 +940,10 @@ function showReplaceModal(comp) {
     document.body.appendChild(modal);
     document.getElementById('replace-close').addEventListener('click', () => modal.classList.add('hidden'));
     modal.addEventListener('click', e => { if (e.target === modal) modal.classList.add('hidden'); });
-    document.getElementById('replace-search').addEventListener('input', () => buildReplaceList(comp));
+    document.getElementById('replace-search').addEventListener('input', () => buildReplaceList(modal._targetComp));
   }
   modal._targetComp = comp;
+  document.getElementById('replace-search').value = '';
   modal.classList.remove('hidden');
   buildReplaceList(comp);
 }
@@ -983,15 +1011,28 @@ window.addEventListener('keydown', e => {
     case 'g':  renderer.showGrid = !renderer.showGrid; renderer.render(); break;
     case '+':  case '=': renderer.zoomAt(canvas.width/2, canvas.height/2, 1.25); updateZoomDisplay(); break;
     case '-':  renderer.zoomAt(canvas.width/2, canvas.height/2, 0.8); updateZoomDisplay(); break;
+    case 'tab':
+      // Tab cancels wire mode (useful for trackpad users who can't right-click easily)
+      e.preventDefault();
+      if (wireTool.active) {
+        wireTool.end();
+        renderer._wirePreview = null;
+        setMsg('Wire cancelled');
+      }
+      setTool(null);
+      renderer.render();
+      break;
     case 'escape':
       renderer._wirePreview = null;
       if (wireTool.active) wireTool.end();
       setTool(null);
-      // Deselect wires and vias
+      // Deselect all
+      Object.values(state.schematic.components).forEach(c => { c.selected = false; });
       Object.values(state.schematic.wires).forEach(w => { w.selected = false; });
       Object.values(state.pcb.vias).forEach(v => { v.selected = false; });
       _selectedWireId = null;
       _selectedViaId  = null;
+      hideCompActions();
       renderer.render();
       break;
     case 'delete':

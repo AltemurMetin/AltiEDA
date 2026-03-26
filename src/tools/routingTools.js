@@ -216,13 +216,15 @@ export class WireTool {
     const keep   = state.schematic.nets[keepId];
     const remove = state.schematic.nets[removeId];
     if (!keep || !remove) return;
-    remove.pinRefs.forEach(r => {
+    if (!keep.pinRefs)  keep.pinRefs  = [];
+    if (!keep.wireIds)  keep.wireIds  = [];
+    (remove.pinRefs || []).forEach(r => {
       keep.pinRefs.push(r);
       const comp = state.schematic.components[r.componentId];
       const pin  = comp?.pins.find(p => p.number === r.pinNumber);
       if (pin) pin.netId = keepId;
     });
-    remove.wireIds.forEach(wId => {
+    (remove.wireIds || []).forEach(wId => {
       const w = state.schematic.wires[wId];
       if (w) w.netId = keepId;
       keep.wireIds.push(wId);
