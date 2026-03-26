@@ -14,6 +14,7 @@ import { exportManufacturingPackage }      from './export/exportPackager.js';
 import { onComponentSelect, initPanel, hidePanel } from './ui/contextualPanel.js';
 import { toggle2D3DView, renderLayerStackupUI }     from './ui/threeDView.js';
 import { runSimulation, initSimulationManager }     from './simulation/simulationManager.js';
+import { plotACResponse, plotDCSweep, showOscilloscope } from './simulation/oscilloscope.js';
 import { autoRoute, createCopperPour, clearCopperPours } from './tools/autoRouter.js';
 import { computeACResponse, computeDCSweep, computeNoiseAnalysis } from './simulation/acAnalysis.js';
 import { exportSchematicPDF, HierarchicalSchematic } from './export/pdfExport.js';
@@ -1090,14 +1091,26 @@ document.getElementById('btn-save')?.addEventListener('click', saveLocal);
 
 // ── Autorouter ───────────────────────────────────────────────────────────────
 document.getElementById('btn-autoroute')?.addEventListener('click', () => {
+  // Auto-switch to PCB mode if needed
   if (state.mode !== 'pcb') {
-    setMsg('Switch to PCB mode first');
-    return;
+    const pcbBtn = document.querySelector('[data-mode="pcb"]');
+    if (pcbBtn) pcbBtn.click();
   }
   setMsg('Running autorouter…');
-  const result = autoRoute();
-  renderer.render();
-  setMsg(`Autoroute: ${result.routed} routed, ${result.failed} failed`);
+  setTimeout(() => {
+    const result = autoRoute();
+    // Highlight failed ratsnest in red
+    if (result.failed > 0) {
+      renderer.failedRatsnest = state.pcb.ratsnest.slice();
+    } else {
+      renderer.failedRatsnest = [];
+    }
+    renderer.render();
+    const msg = result.failed > 0
+      ? `Autoroute: ${result.routed} routed, ${result.failed} FAILED (shown in red)`
+      : `Autoroute complete: ${result.routed} connections routed successfully`;
+    setMsg(msg);
+  }, 50); // Small delay for UI feedback
 });
 
 // ── Copper Pour ──────────────────────────────────────────────────────────────
@@ -1123,11 +1136,31 @@ document.getElementById('btn-pdf-export')?.addEventListener('click', () => {
   setMsg('PDF exported — check downloads');
 });
 
-// ── AC Analysis ──────────────────────────────────────────────────────────────
+// ── AC Analysis (Bode Plot) ──────────────────────────────────────────────────
 document.getElementById('btn-ac-analysis')?.addEventListener('click', () => {
   const result = computeACResponse();
-  console.log('[AC Analysis]', result);
-  setMsg(`AC Analysis: ${result.circuit.topology} — fc=${result.circuit.params.fc?.toFixed(1) ?? 'N/A'} Hz`);
+  plotACResponse(result);
+  const fc = result.circuit.params.fc ?? result.circuit.params.f0;
+  setMsg(`AC Analysis: ${result.circuit.topology.replace(/_/g, ' ')}${fc ? ` — fc = ${fc.toFixed(1)} Hz` : ''}`);
+});
+
+// ── DC Sweep Analysis ────────────────────────────────────────────────────────
+document.getElementById('btn-dc-sweep')?.addEventListener('click', () => {
+  const result = computeDCSweep();
+  plotDCSweep(result);
+  setMsg(`DC Sweep: ${result.topology.replace(/_/g, ' ')} — ${result.points.length} points`);
+});
+
+// ── Noise Analysis ───────────────────────────────────────────────────────────
+document.getElementById('btn-noise-analysis')?.addEventListener('click', () => {
+  const result = computeNoiseAnalysis();
+  console.log('[Noise Analysis]', result);
+  if (result.contributions.length === 0) {
+    setMsg('Noise Analysis: No resistors found in circuit');
+  } else {
+    const nV = (result.totalNoise * 1e6).toFixed(2);
+    setMsg(`Total noise: ${nV} µV RMS (${result.contributions.length} resistors, BW: ${(result.bandwidth / 1e6).toFixed(1)} MHz)`);
+  }
 });
 
 // ── Impedance Calculator ─────────────────────────────────────────────────────

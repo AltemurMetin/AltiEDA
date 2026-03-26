@@ -260,8 +260,9 @@ export class CanvasRenderer {
     if (this.showGrid) this._drawGrid();
 
     if (state.mode === 'pcb') {
-      // PCB mode: draw board outline, copper traces, footprints, vias, ratsnest
+      // PCB mode: draw board outline, copper pours, traces, footprints, vias, ratsnest
       this._drawBoardOutline();
+      this._drawCopperPours();
       this._drawPCBTraces();
       this._drawPCBComponents();
       this._drawVias();
@@ -1102,12 +1103,22 @@ export class CanvasRenderer {
   /* ── Ratsnest ───────────────────────────────────────────────────────────── */
   _drawRatsnest() {
     const { ctx } = this;
+    const failedSet = new Set((this.failedRatsnest || []).map(r => `${r.x1},${r.y1},${r.x2},${r.y2}`));
     ctx.setLineDash([3, 5]);
-    ctx.strokeStyle = C.ratsnest;
-    ctx.lineWidth   = 0.8;
+    ctx.lineWidth = 0.8;
     ctx.globalAlpha = 0.5;
     for (const rn of state.pcb.ratsnest) {
       const p1 = this.w2s(rn.x1, rn.y1), p2 = this.w2s(rn.x2, rn.y2);
+      const key = `${rn.x1},${rn.y1},${rn.x2},${rn.y2}`;
+      if (failedSet.has(key)) {
+        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.8;
+      } else {
+        ctx.strokeStyle = C.ratsnest;
+        ctx.lineWidth = 0.8;
+        ctx.globalAlpha = 0.5;
+      }
       ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
     }
     ctx.setLineDash([]); ctx.globalAlpha = 1;
@@ -1226,6 +1237,120 @@ export class CanvasRenderer {
       ctx.fillText(`${bhMM} mm`, 0, 0);
       ctx.restore();
       ctx.textBaseline = 'alphabetic';
+    }
+  }
+
+  /* ── Copper pours (filled polygon zones) ───────────────────────────── */
+  _drawCopperPours() {
+    const polygons = state.pcb.polygons;
+    if (!polygons || polygons.length === 0) return;
+    const { ctx } = this;
+
+    for (const poly of polygons) {
+      if (poly.type !== 'copper_pour' || !poly.boundary || poly.boundary.length < 3) continue;
+
+      ctx.save();
+
+      // 1. Draw filled boundary polygon
+      ctx.beginPath();
+      const p0 = this.w2s(poly.boundary[0].x, poly.boundary[0].y);
+      ctx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < poly.boundary.length; i++) {
+        const p = this.w2s(poly.boundary[i].x, poly.boundary[i].y);
+        ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(200, 117, 51, 0.18)';
+      ctx.fill();
+
+      // 2. Draw exclusion zones (clearance holes) — draw bg-colored circles/rects
+      for (const excl of (poly.exclusions || [])) {
+        if (excl.type === 'pad' || excl.type === 'via') {
+          const ep = this.w2s(excl.x, excl.y);
+          const r = Math.max(excl.width, excl.height) / 2 * GRID * this.zoom;
+          ctx.beginPath();
+          ctx.arc(ep.x, ep.y, r, 0, Math.PI * 2);
+          ctx.fillStyle = C.bg;
+          ctx.fill();
+          // Clearance ring
+          ctx.strokeStyle = 'rgba(200, 117, 51, 0.3)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        } else if (excl.type === 'trace') {
+          const tp1 = this.w2s(excl.x1, excl.y1);
+          const tp2 = this.w2s(excl.x2, excl.y2);
+          ctx.strokeStyle = C.bg;
+          ctx.lineWidth = excl.clearance * 2 * GRID * this.zoom;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(tp1.x, tp1.y);
+          ctx.lineTo(tp2.x, tp2.y);
+          ctx.stroke();
+        }
+      }
+
+      // 3. Draw thermal relief pads (4-spoke pattern)
+      for (const tp of (poly.thermalPads || [])) {
+        const tpScreen = this.w2s(tp.x, tp.y);
+        const padR = Math.max(tp.width, tp.height) / 2 * GRID * this.zoom;
+        const gap = (tp.thermalGap || 0.2) * GRID * this.zoom;
+        const spokeW = (tp.thermalWidth || 0.25) * GRID * this.zoom;
+
+        // Copper fill ring
+        ctx.beginPath();
+        ctx.arc(tpScreen.x, tpScreen.y, padR + gap, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(200, 117, 51, 0.25)';
+        ctx.fill();
+
+        // Clear gap ring
+        ctx.beginPath();
+        ctx.arc(tpScreen.x, tpScreen.y, padR + gap * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = C.bg;
+        ctx.fill();
+
+        // 4 thermal spokes (cross pattern)
+        ctx.fillStyle = 'rgba(200, 117, 51, 0.4)';
+        for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+          const cos = Math.cos(angle), sin = Math.sin(angle);
+          const innerR = padR * 0.6;
+          const outerR = padR + gap;
+          ctx.save();
+          ctx.translate(tpScreen.x, tpScreen.y);
+          ctx.rotate(angle);
+          ctx.fillRect(innerR, -spokeW / 2, outerR - innerR, spokeW);
+          ctx.restore();
+        }
+      }
+
+      // 4. Dashed boundary outline
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      for (let i = 1; i < poly.boundary.length; i++) {
+        const p = this.w2s(poly.boundary[i].x, poly.boundary[i].y);
+        ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = 'rgba(200, 117, 51, 0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Net label
+      if (poly.netId && this.zoom > 0.3) {
+        const center = this.w2s(
+          poly.boundary.reduce((s, p) => s + p.x, 0) / poly.boundary.length,
+          poly.boundary.reduce((s, p) => s + p.y, 0) / poly.boundary.length
+        );
+        ctx.fillStyle = 'rgba(200, 117, 51, 0.6)';
+        ctx.font = `${Math.max(10, 12 * this.zoom)}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const netName = state.schematic.nets[poly.netId]?.name ?? poly.netId;
+        ctx.fillText(`Pour: ${netName}`, center.x, center.y);
+      }
+
+      ctx.restore();
     }
   }
 
