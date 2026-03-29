@@ -164,7 +164,9 @@ export function switchToPCBMode(renderer) {
 export function switchToSchematicMode(renderer) {
   state.mode = 'schematic';
   if (renderer.applyTheme) renderer.applyTheme('schematic');
+  // Recalculate viewport for schematic bounds (not PCB board)
   if (renderer.fitAll) renderer.fitAll();
   // Synchronous draw to immediately clear stale PCB board from canvas
+  // This also cancels the async render queued by fitAll, preventing any flicker
   if (renderer.renderImmediate) renderer.renderImmediate();
 }

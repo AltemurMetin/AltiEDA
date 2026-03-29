@@ -1266,7 +1266,23 @@ document.querySelectorAll('[data-mode]').forEach(btn => {
 
 // ── Autosave restore ──────────────────────────────────────────────────────────
 const saved = localStorage.getItem('altieda_autosave');
-if (saved) { try { state.fromJSON(saved); } catch { /* ignore */ } }
+if (saved) {
+  try {
+    state.fromJSON(saved);
+    // Sync UI mode buttons with restored state
+    const restoredMode = state.mode || 'schematic';
+    document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+    const activeBtn = document.querySelector(`[data-mode="${restoredMode}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+    document.documentElement.dataset.mode = restoredMode;
+    applyTheme(restoredMode === 'pcb' ? 'pcb' : 'schematic');
+    // If restored to 3D or simulation, fall back to last 2D mode
+    if (restoredMode === '3d' || restoredMode === 'simulation') {
+      state.mode = Object.keys(state.pcb.components).length > 0 ? 'pcb' : 'schematic';
+      applyTheme(state.mode === 'pcb' ? 'pcb' : 'schematic');
+    }
+  } catch { /* ignore corrupt autosave */ }
+}
 
 state.subscribe(() => renderer.render());
 
@@ -1319,8 +1335,10 @@ function setMsg(msg) {
 }
 
 // ── Initial render ────────────────────────────────────────────────────────────
-document.documentElement.dataset.mode = 'schematic';
-applyTheme('schematic');
-renderer.render();
+// Sync initial mode from state (may have been restored by autosave above)
+const initMode = state.mode === 'pcb' ? 'pcb' : 'schematic';
+document.documentElement.dataset.mode = initMode;
+applyTheme(initMode);
+renderer.renderImmediate();
 updateZoomDisplay();
 setMsg('Ready — drag components from the sidebar onto the canvas to begin');

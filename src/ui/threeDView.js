@@ -417,10 +417,8 @@ export function toggle2D3DView(targetMode, canvasEl, threeContainer) {
   } else {
     canvasEl.style.display = 'block';
     threeContainer.style.display = 'none';
-    // Only restore mode when coming back from 3D view; don't override schematic/pcb
-    if (state.mode === '3d') {
-      state.mode = Object.keys(state.pcb.components).length > 0 ? 'pcb' : 'schematic';
-    }
+    // Don't override mode here — the caller (mode switcher) already sets the correct mode
+    // via switchToSchematicMode() or switchToPCBMode() before calling toggle2D3DView().
   }
 }
 
