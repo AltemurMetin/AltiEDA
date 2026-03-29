@@ -208,27 +208,43 @@
         <div id="ctx-menu" class="hidden">
           <div class="ctx-title" id="ctx-comp-name">Component</div>
           <div class="ctx-sep"></div>
-          <div class="ctx-item" id="ctx-rotate">
+          <!-- Component-only actions -->
+          <div class="ctx-item ctx-comp-only" id="ctx-rotate">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 5A6 6 0 1 0 11 11"/><polyline points="13,2 13,6 9,6"/></svg>
             Rotate 90°
           </div>
-          <div class="ctx-item" id="ctx-mirror">
+          <div class="ctx-item ctx-comp-only" id="ctx-mirror">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="8" y1="2" x2="8" y2="14"/><polyline points="5,5 2,8 5,11"/><polyline points="11,5 14,8 11,11"/></svg>
             Mirror Horizontal
           </div>
-          <div class="ctx-item" id="ctx-replace">
+          <div class="ctx-item ctx-comp-only" id="ctx-replace">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="6" height="8" rx="1"/><rect x="9" y="4" width="6" height="8" rx="1"/><path d="M7 8h2"/><polyline points="10,6 12,8 10,10"/></svg>
             Replace Component…
           </div>
-          <div class="ctx-item" id="ctx-connections">
+          <div class="ctx-item ctx-comp-only" id="ctx-connections">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="3" cy="8" r="2"/><circle cx="13" cy="4" r="2"/><circle cx="13" cy="12" r="2"/><path d="M5 8h3l2-4M8 8l2 4"/></svg>
             Show Connections
           </div>
-          <div class="ctx-item" id="ctx-properties">
+          <div class="ctx-item ctx-comp-only" id="ctx-properties">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M5 6h6M5 9h4"/></svg>
             Properties
           </div>
+          <!-- Wire-only actions -->
+          <div class="ctx-item ctx-wire-only" id="ctx-wire-info">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v1M8 8v4"/></svg>
+            Wire Info
+          </div>
+          <!-- Via-only actions -->
+          <div class="ctx-item ctx-via-only" id="ctx-via-info">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v1M8 8v4"/></svg>
+            Via Info
+          </div>
+          <!-- Universal actions -->
           <div class="ctx-sep"></div>
+          <div class="ctx-item" id="ctx-select-net" style="display:none;">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8h4M10 8h4"/><circle cx="8" cy="8" r="2"/></svg>
+            Select Net
+          </div>
           <div class="ctx-item ctx-danger" id="ctx-delete">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3,4 13,4"/><path d="M5 4V2h6v2M6 7v5M10 7v5"/><path d="M4 4l1 10h6l1-10"/></svg>
             Delete

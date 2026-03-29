@@ -825,14 +825,32 @@ canvas.addEventListener('dblclick', e => {
 
 // ── Context menu ───────────────────────────────────────────────────────────────
 const ctxMenu = document.getElementById('ctx-menu');
-let _ctxTarget = null;
+let _ctxTarget = null;   // { type: 'comp'|'wire'|'via', obj: ... }
 
-function showCtxMenu(comp, screenX, screenY) {
-  _ctxTarget = comp;
-  // Set title to component name
+function showCtxMenu(target, screenX, screenY) {
+  _ctxTarget = target;
   const title = document.getElementById('ctx-comp-name');
-  if (title) title.textContent = comp.partName + (comp.value ? ` (${comp.value})` : '');
-  // Ensure menu stays within viewport
+  const selectNetBtn = document.getElementById('ctx-select-net');
+
+  // Remove previous type classes
+  ctxMenu.classList.remove('ctx-type-comp', 'ctx-type-wire', 'ctx-type-via');
+
+  if (target.type === 'comp') {
+    ctxMenu.classList.add('ctx-type-comp');
+    title.textContent = target.obj.partName + (target.obj.value ? ` (${target.obj.value})` : '');
+    selectNetBtn.style.display = 'none';
+  } else if (target.type === 'wire') {
+    ctxMenu.classList.add('ctx-type-wire');
+    const net = target.obj.netId ? state.schematic.nets[target.obj.netId] : null;
+    title.textContent = net ? `Wire — ${net.name || target.obj.netId}` : 'Wire';
+    selectNetBtn.style.display = target.obj.netId ? 'flex' : 'none';
+  } else if (target.type === 'via') {
+    ctxMenu.classList.add('ctx-type-via');
+    title.textContent = `Via (${target.obj.startLayer} → ${target.obj.endLayer})`;
+    selectNetBtn.style.display = 'none';
+  }
+
+  // Show menu within viewport
   ctxMenu.classList.remove('hidden');
   const mw = ctxMenu.offsetWidth  || 180;
   const mh = ctxMenu.offsetHeight || 200;
@@ -846,28 +864,82 @@ function hideCtxMenu() {
   _ctxTarget = null;
 }
 
+// ── Context menu action handlers ──
 document.getElementById('ctx-delete')?.addEventListener('click', () => {
-  _actionTarget = _ctxTarget; deleteSelected(); hideCtxMenu();
+  if (!_ctxTarget) { hideCtxMenu(); return; }
+  state.pushUndo();
+  if (_ctxTarget.type === 'comp') {
+    _actionTarget = _ctxTarget.obj;
+    state.removeComponent(_ctxTarget.obj.id);
+    hideCompActions();
+    hidePanel();
+    setMsg('Component deleted');
+  } else if (_ctxTarget.type === 'wire') {
+    state.removeWire(_ctxTarget.obj.id);
+    _selectedWireId = null;
+    setMsg('Wire deleted');
+  } else if (_ctxTarget.type === 'via') {
+    state.removeVia(_ctxTarget.obj.id);
+    _selectedViaId = null;
+    setMsg('Via deleted');
+  }
+  renderer.render();
+  hideCtxMenu();
 });
+
 document.getElementById('ctx-rotate')?.addEventListener('click', () => {
-  _actionTarget = _ctxTarget; rotateSelected(); hideCtxMenu();
+  if (_ctxTarget?.type === 'comp') { _actionTarget = _ctxTarget.obj; rotateSelected(); }
+  hideCtxMenu();
 });
 document.getElementById('ctx-mirror')?.addEventListener('click', () => {
-  _actionTarget = _ctxTarget; mirrorSelected(); hideCtxMenu();
+  if (_ctxTarget?.type === 'comp') { _actionTarget = _ctxTarget.obj; mirrorSelected(); }
+  hideCtxMenu();
 });
 document.getElementById('ctx-replace')?.addEventListener('click', () => {
-  _actionTarget = _ctxTarget; replaceSelected(); hideCtxMenu();
+  if (_ctxTarget?.type === 'comp') { _actionTarget = _ctxTarget.obj; replaceSelected(); }
+  hideCtxMenu();
 });
 document.getElementById('ctx-properties')?.addEventListener('click', () => {
-  if (_ctxTarget) { onComponentSelect(_ctxTarget.partId); showCompActions(_ctxTarget); }
+  if (_ctxTarget?.type === 'comp') {
+    onComponentSelect(_ctxTarget.obj.partId);
+    showCompActions(_ctxTarget.obj);
+  }
   hideCtxMenu();
 });
 document.getElementById('ctx-connections')?.addEventListener('click', () => {
-  if (!_ctxTarget) { hideCtxMenu(); return; }
-  const comp  = _ctxTarget;
+  if (_ctxTarget?.type !== 'comp') { hideCtxMenu(); return; }
+  const comp  = _ctxTarget.obj;
   const nets  = comp.pins.filter(p => p.netId).map(p => `${p.name}: ${p.netId}`);
   const msg   = nets.length ? nets.join(', ') : 'No connected nets';
   setMsg(`${comp.partName} connections — ${msg}`);
+  hideCtxMenu();
+});
+
+document.getElementById('ctx-wire-info')?.addEventListener('click', () => {
+  if (_ctxTarget?.type !== 'wire') { hideCtxMenu(); return; }
+  const w = _ctxTarget.obj;
+  const net = w.netId ? state.schematic.nets[w.netId] : null;
+  const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1) * 2.54;
+  setMsg(`Wire: ${net?.name || w.netId || 'unconnected'} — ${len.toFixed(1)} mm`);
+  hideCtxMenu();
+});
+
+document.getElementById('ctx-via-info')?.addEventListener('click', () => {
+  if (_ctxTarget?.type !== 'via') { hideCtxMenu(); return; }
+  const v = _ctxTarget.obj;
+  setMsg(`Via: ${v.startLayer} → ${v.endLayer}, pad ${v.padDiameter ?? 1.8}mm, drill ${v.drillDiameter ?? 0.6}mm`);
+  hideCtxMenu();
+});
+
+document.getElementById('ctx-select-net')?.addEventListener('click', () => {
+  if (_ctxTarget?.type === 'wire' && _ctxTarget.obj.netId) {
+    const netId = _ctxTarget.obj.netId;
+    // Select all wires in this net
+    Object.values(state.schematic.wires).forEach(w => { w.selected = w.netId === netId; });
+    const count = Object.values(state.schematic.wires).filter(w => w.netId === netId).length;
+    setMsg(`Selected ${count} wires on net ${netId}`);
+    renderer.render();
+  }
   hideCtxMenu();
 });
 
@@ -878,17 +950,51 @@ function _dismissMenus(e) {
 document.addEventListener('click',      _dismissMenus);
 document.addEventListener('touchstart', _dismissMenus, { passive: true });
 
+// ── Unified hit-test for context menu (component → wire → via) ──
+function _ctxHitTest(worldX, worldY) {
+  const comp = hitTest(worldX, worldY);
+  if (comp) return { type: 'comp', obj: comp };
+
+  const wire = renderer.wireHitTest(worldX, worldY);
+  if (wire) return { type: 'wire', obj: wire };
+
+  const via = renderer.viaHitTest(worldX, worldY);
+  if (via) return { type: 'via', obj: via };
+
+  return null;
+}
+
+function _selectCtxTarget(target) {
+  // Deselect everything first
+  Object.values(state.schematic.components).forEach(c => c.selected = false);
+  Object.values(state.schematic.wires).forEach(w => { w.selected = false; });
+  Object.values(state.pcb.vias).forEach(v => { v.selected = false; });
+  _selectedWireId = null;
+  _selectedViaId  = null;
+
+  if (target.type === 'comp') {
+    target.obj.selected = true;
+    showCompActions(target.obj);
+  } else if (target.type === 'wire') {
+    target.obj.selected = true;
+    _selectedWireId = target.obj.id;
+    hideCompActions();
+  } else if (target.type === 'via') {
+    target.obj.selected = true;
+    _selectedViaId = target.obj.id;
+    hideCompActions();
+  }
+}
+
 // Right-click on canvas → context menu
 canvas.addEventListener('contextmenu', e => {
   e.preventDefault();
   const rect  = canvas.getBoundingClientRect();
   const world = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-  const hit   = hitTest(world.x, world.y);
-  if (hit) {
-    Object.values(state.schematic.components).forEach(c => c.selected = false);
-    hit.selected = true;
-    showCompActions(hit);
-    showCtxMenu(hit, e.clientX, e.clientY);
+  const target = _ctxHitTest(world.x, world.y);
+  if (target) {
+    _selectCtxTarget(target);
+    showCtxMenu(target, e.clientX, e.clientY);
     renderer.render();
   }
 });
@@ -902,13 +1008,13 @@ canvas.addEventListener('touchstart', e2 => {
     if (activeTool === 'wire') return;   // don't show context menu in wire mode
     const rect  = canvas.getBoundingClientRect();
     const world = renderer.screenToWorld(t.clientX - rect.left, t.clientY - rect.top);
-    const hit   = hitTest(world.x, world.y);
-    if (hit) {
-      Object.values(state.schematic.components).forEach(c => c.selected = false);
-      hit.selected = true;
-      showCompActions(hit);
-      showCtxMenu(hit, t.clientX, t.clientY);
+    const target = _ctxHitTest(world.x, world.y);
+    if (target) {
+      _selectCtxTarget(target);
+      showCtxMenu(target, t.clientX, t.clientY);
       renderer.render();
+      // Vibrate feedback for touch devices
+      if (navigator.vibrate) navigator.vibrate(30);
     }
   }, 500);
 }, { passive: true });
