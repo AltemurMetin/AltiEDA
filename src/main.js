@@ -1111,9 +1111,9 @@ function updateProbeTooltip(e) {
 window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   switch (e.key.toLowerCase()) {
-    case 'w':  setTool('wire');  break;
-    case 'v':  setTool('via');   break;
-    case 'p':  setTool('probe-v'); break;
+    case 'w':  setTool(activeTool === 'wire'  ? null : 'wire');  break;
+    case 'v':  setTool(activeTool === 'via'   ? null : 'via');   break;
+    case 'p':  setTool(activeTool === 'probe-v' ? null : 'probe-v'); break;
     case 'g':  renderer.showGrid = !renderer.showGrid; renderer.render(); break;
     case '+':  case '=': renderer.zoomAt(canvas.width/2, canvas.height/2, 1.25); updateZoomDisplay(); break;
     case '-':  renderer.zoomAt(canvas.width/2, canvas.height/2, 0.8); updateZoomDisplay(); break;
@@ -1208,10 +1208,10 @@ btnLibClose?.addEventListener('click', closeLibPanel);
 backdrop?.addEventListener('click',    closeLibPanel);
 
 // ── Toolbar buttons ───────────────────────────────────────────────────────────
-document.getElementById('btn-wire')?.addEventListener('click',    () => setTool('wire'));
-document.getElementById('btn-via')?.addEventListener('click',     () => setTool('via'));
-document.getElementById('btn-probe-v')?.addEventListener('click', () => setTool('probe-v'));
-document.getElementById('btn-probe-a')?.addEventListener('click', () => setTool('probe-a'));
+document.getElementById('btn-wire')?.addEventListener('click',    () => setTool(activeTool === 'wire'    ? null : 'wire'));
+document.getElementById('btn-via')?.addEventListener('click',     () => setTool(activeTool === 'via'     ? null : 'via'));
+document.getElementById('btn-probe-v')?.addEventListener('click', () => setTool(activeTool === 'probe-v' ? null : 'probe-v'));
+document.getElementById('btn-probe-a')?.addEventListener('click', () => setTool(activeTool === 'probe-a' ? null : 'probe-a'));
 
 document.getElementById('btn-zoom-in')?.addEventListener('click',
   () => { renderer.zoomAt(canvas.width/2, canvas.height/2, 1.25); updateZoomDisplay(); });
@@ -1414,7 +1414,7 @@ function setTool(tool) {
 
   const ind = document.getElementById('tool-indicator');
   if (tool) {
-    ind.textContent = `● ${tool.toUpperCase()} TOOL`;
+    ind.textContent = `● ${tool.toUpperCase()} TOOL — ESC or Tab to cancel`;
     ind.classList.remove('hidden');
   } else {
     ind.classList.add('hidden');
