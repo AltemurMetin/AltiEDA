@@ -281,6 +281,29 @@ export class CanvasRenderer {
       this._drawDRC();
       if (this._wirePreview) this._drawWirePreview();
     }
+
+    // Rubber-band selection overlay (drawn in screen coords, not world)
+    if (this._rubberBand) this._drawRubberBand();
+  }
+
+  _drawRubberBand() {
+    const rb = this._rubberBand;
+    const rect = this.canvas.getBoundingClientRect();
+    const x = Math.min(rb.startX, rb.endX) - rect.left;
+    const y = Math.min(rb.startY, rb.endY) - rect.top;
+    const w = Math.abs(rb.endX - rb.startX);
+    const h = Math.abs(rb.endY - rb.startY);
+    const { ctx } = this;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle   = 'rgba(0, 120, 215, 0.12)';
+    ctx.strokeStyle = 'rgba(0, 120, 215, 0.7)';
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([4, 2]);
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeRect(x, y, w, h);
+    ctx.setLineDash([]);
+    ctx.restore();
   }
 
   /* ── Dot Grid ───────────────────────────────────────────────────────────── */

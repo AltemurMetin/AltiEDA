@@ -4,7 +4,7 @@
 import { CanvasRenderer }    from './core/canvasRenderer.js';
 import { state }             from './core/schematicState.js';
 import { COMPONENT_LIBRARY } from './core/componentLibrary.js';
-import { createComponent }   from './core/dataModels.js';
+import { createComponent, createWire } from './core/dataModels.js';
 import { generateSuggestions, acceptAllSuggestions } from './tools/aiPinMatcher.js';
 import { WireTool, placeVia, placeProbeTool, getProbeNetName } from './tools/routingTools.js';
 import { generateNetlist, switchToPCBMode, switchToSchematicMode } from './core/netlistGenerator.js';
@@ -24,6 +24,12 @@ const canvas   = document.getElementById('main-canvas');
 const renderer = new CanvasRenderer(canvas);
 let activeTool = null;
 let wireTool   = new WireTool(renderer);
+
+// ── Clipboard ────────────────────────────────────────────────────────────────
+let _clipboard = [];  // array of component snapshots for paste
+
+// ── Rubber-band selection ────────────────────────────────────────────────────
+let _rubberBand = null;  // { startX, startY, endX, endY } in screen coords
 
 // ── Sidebar: Component Library ────────────────────────────────────────────────
 function buildSidebar() {
@@ -271,16 +277,22 @@ canvas.addEventListener('mousedown', e => {
   const world = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
   const hit   = hitTest(world.x, world.y);
   if (hit) {
-    // Deselect others
-    Object.values(state.schematic.components).forEach(c => c.selected = false);
-    Object.values(state.schematic.wires).forEach(w => { w.selected = false; });
-    Object.values(state.pcb.vias).forEach(v => { v.selected = false; });
-    _selectedWireId = null;
-    _selectedViaId  = null;
+    // If shift held, toggle selection without deselecting others
+    if (!e.shiftKey) {
+      if (!hit.selected) {
+        Object.values(state.schematic.components).forEach(c => c.selected = false);
+        Object.values(state.schematic.wires).forEach(w => { w.selected = false; });
+        Object.values(state.pcb.vias).forEach(v => { v.selected = false; });
+        _selectedWireId = null;
+        _selectedViaId  = null;
+      }
+    }
     startCompDrag(hit, e.clientX, e.clientY);
     renderer.render();
+  } else {
+    // Start rubber-band selection on empty area
+    _rubberBand = { startX: e.clientX, startY: e.clientY, endX: e.clientX, endY: e.clientY };
   }
-  // If no component hit, check wire/via selection (no tool needed)
 });
 
 canvas.addEventListener('mousemove', e => {
@@ -305,6 +317,14 @@ canvas.addEventListener('mousemove', e => {
     renderer.render();
   }
 
+  // Rubber-band selection drag
+  if (_rubberBand) {
+    _rubberBand.endX = e.clientX;
+    _rubberBand.endY = e.clientY;
+    renderer._rubberBand = _rubberBand;
+    renderer.render();
+  }
+
   updateProbeTooltip(e);
 });
 
@@ -321,6 +341,42 @@ canvas.addEventListener('mouseup', e => {
     return;
   }
   if (_pan) { _pan = false; _panPt = null; return; }
+
+  // Rubber-band selection finalize
+  if (_rubberBand && e.button === 0) {
+    const rb = _rubberBand;
+    _rubberBand = null;
+    renderer._rubberBand = null;
+    const dx = Math.abs(rb.endX - rb.startX);
+    const dy = Math.abs(rb.endY - rb.startY);
+    if (dx > 5 || dy > 5) {
+      // Convert screen rect to world coords
+      const rect = canvas.getBoundingClientRect();
+      const w1 = renderer.screenToWorld(Math.min(rb.startX, rb.endX) - rect.left, Math.min(rb.startY, rb.endY) - rect.top);
+      const w2 = renderer.screenToWorld(Math.max(rb.startX, rb.endX) - rect.left, Math.max(rb.startY, rb.endY) - rect.top);
+      if (!e.shiftKey) {
+        Object.values(state.schematic.components).forEach(c => c.selected = false);
+        Object.values(state.schematic.wires).forEach(w => { w.selected = false; });
+      }
+      // Select all components within the box
+      for (const comp of Object.values(state.schematic.components)) {
+        if (comp.x >= w1.x && comp.x <= w2.x && comp.y >= w1.y && comp.y <= w2.y) {
+          comp.selected = true;
+        }
+      }
+      // Select wires fully inside the box
+      for (const wire of Object.values(state.schematic.wires)) {
+        const inBox = wire.x1 >= w1.x && wire.x1 <= w2.x && wire.y1 >= w1.y && wire.y1 <= w2.y
+                   && wire.x2 >= w1.x && wire.x2 <= w2.x && wire.y2 >= w1.y && wire.y2 <= w2.y;
+        if (inBox) wire.selected = true;
+      }
+      const selCount = Object.values(state.schematic.components).filter(c => c.selected).length
+                     + Object.values(state.schematic.wires).filter(w => w.selected).length;
+      setMsg(selCount > 0 ? `Selected ${selCount} objects` : '');
+      renderer.render();
+      return;
+    }
+  }
 
   // Click on canvas with no tool = try to select wire/via, or deselect all
   if (e.button === 0 && !activeTool) {
@@ -1181,7 +1237,81 @@ window.addEventListener('keydown', e => {
     if (e.key === 'a') {
       e.preventDefault();
       Object.values(state.schematic.components).forEach(c => c.selected = true);
+      Object.values(state.schematic.wires).forEach(w => { w.selected = true; });
       renderer.render();
+      setMsg('All selected');
+    }
+    // ── Copy (Ctrl+C) ──
+    if (e.key === 'c' && !e.shiftKey) {
+      e.preventDefault();
+      const sel = Object.values(state.schematic.components).filter(c => c.selected);
+      if (sel.length === 0) return;
+      // Also capture wires between selected components
+      const selIds = new Set(sel.map(c => c.id));
+      const selWires = Object.values(state.schematic.wires).filter(w => w.selected);
+      _clipboard = { components: sel.map(c => JSON.parse(JSON.stringify(c))), wires: selWires.map(w => JSON.parse(JSON.stringify(w))) };
+      setMsg(`Copied ${sel.length} component(s)`);
+    }
+    // ── Cut (Ctrl+X) ──
+    if (e.key === 'x') {
+      e.preventDefault();
+      const sel = Object.values(state.schematic.components).filter(c => c.selected);
+      if (sel.length === 0) return;
+      const selWires = Object.values(state.schematic.wires).filter(w => w.selected);
+      _clipboard = { components: sel.map(c => JSON.parse(JSON.stringify(c))), wires: selWires.map(w => JSON.parse(JSON.stringify(w))) };
+      state.pushUndo();
+      sel.forEach(c => state.removeComponent(c.id));
+      selWires.forEach(w => state.removeWire(w.id));
+      hideCompActions();
+      renderer.render();
+      setMsg(`Cut ${sel.length} component(s)`);
+    }
+    // ── Paste (Ctrl+V) ──
+    if (e.key === 'v' && !e.shiftKey) {
+      e.preventDefault();
+      if (!_clipboard || !_clipboard.components?.length) return;
+      state.pushUndo();
+      Object.values(state.schematic.components).forEach(c => c.selected = false);
+      const offset = 3; // grid offset for paste
+      const idMap = {};
+      for (const orig of _clipboard.components) {
+        const lib = COMPONENT_LIBRARY.find(l => l.partId === orig.partId);
+        if (!lib) continue;
+        const comp = createComponent(lib, orig.x + offset, orig.y + offset);
+        comp.value    = orig.value;
+        comp.rotation = orig.rotation;
+        comp.mirrored = orig.mirrored;
+        comp.selected = true;
+        idMap[orig.id] = comp.id;
+        state.addComponent(comp);
+      }
+      // Paste wires with remapped positions
+      for (const orig of _clipboard.wires) {
+        const w = createWire(orig.x1 + offset, orig.y1 + offset, orig.x2 + offset, orig.y2 + offset);
+        state.addWire(w);
+      }
+      renderer.render();
+      setMsg(`Pasted ${_clipboard.components.length} component(s)`);
+    }
+    // ── Duplicate (Ctrl+D) ──
+    if (e.key === 'd') {
+      e.preventDefault();
+      const sel = Object.values(state.schematic.components).filter(c => c.selected);
+      if (sel.length === 0) return;
+      state.pushUndo();
+      Object.values(state.schematic.components).forEach(c => c.selected = false);
+      for (const orig of sel) {
+        const lib = COMPONENT_LIBRARY.find(l => l.partId === orig.partId);
+        if (!lib) continue;
+        const comp = createComponent(lib, orig.x + 3, orig.y + 3);
+        comp.value    = orig.value;
+        comp.rotation = orig.rotation;
+        comp.mirrored = orig.mirrored;
+        comp.selected = true;
+        state.addComponent(comp);
+      }
+      renderer.render();
+      setMsg(`Duplicated ${sel.length} component(s)`);
     }
   }
 });
@@ -1327,8 +1457,15 @@ document.getElementById('btn-close-layer')?.addEventListener('click', () =>
 document.getElementById('btn-close-info')?.addEventListener('click', hidePanel);
 
 // Menu entries wired up
-document.getElementById('menu-save')?.addEventListener('click',    saveLocal);
-document.getElementById('menu-export')?.addEventListener('click',  () => document.getElementById('btn-export').click());
+document.getElementById('menu-save')?.addEventListener('click',      saveLocal);
+document.getElementById('menu-save-file')?.addEventListener('click', saveToFile);
+document.getElementById('menu-open-file')?.addEventListener('click', openFromFile);
+document.getElementById('menu-export')?.addEventListener('click',    () => document.getElementById('btn-export').click());
+// Edit menu
+document.getElementById('menu-copy')?.addEventListener('click',      () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', ctrlKey: true })));
+document.getElementById('menu-cut')?.addEventListener('click',       () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', ctrlKey: true })));
+document.getElementById('menu-paste')?.addEventListener('click',     () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', ctrlKey: true })));
+document.getElementById('menu-duplicate')?.addEventListener('click', () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', ctrlKey: true })));
 document.getElementById('menu-drc')?.addEventListener('click',     () => document.getElementById('btn-drc').click());
 document.getElementById('menu-fitall')?.addEventListener('click',  () => { renderer.fitAll(); updateZoomDisplay(); });
 document.getElementById('menu-zoomin')?.addEventListener('click',  () => { renderer.zoomAt(canvas.width/2,canvas.height/2,1.25); updateZoomDisplay(); });
@@ -1433,6 +1570,47 @@ function saveLocal() {
   const json = state.toJSON();
   localStorage.setItem('altieda_autosave', json);
   setMsg('Project saved to browser storage');
+}
+
+// ── File save/open ───────────────────────────────────────────────────────────
+function saveToFile() {
+  const json = state.toJSON();
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `altieda-project-${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  setMsg('Project saved to file');
+}
+
+function openFromFile() {
+  const input = document.createElement('input');
+  input.type  = 'file';
+  input.accept = '.json';
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        state.fromJSON(reader.result);
+        const mode = state.mode || 'schematic';
+        document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+        document.querySelector(`[data-mode="${mode}"]`)?.classList.add('active');
+        document.documentElement.dataset.mode = mode;
+        applyTheme(mode === 'pcb' ? 'pcb' : 'schematic');
+        renderer.fitAll();
+        renderer.renderImmediate();
+        setMsg(`Opened: ${file.name}`);
+      } catch (err) {
+        setMsg('Failed to open file: invalid format', true);
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
 }
 
 function setMsg(msg) {
