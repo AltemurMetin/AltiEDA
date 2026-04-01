@@ -10,6 +10,8 @@ import {
   generateExcellonDrillFile,
   generateBOM,
   generatePickAndPlace,
+  generateSolderMaskGerber,
+  generateSolderPasteGerber,
 } from './gerberGenerator.js';
 
 export async function exportManufacturingPackage(projectName = 'AltiEDA_Project') {
@@ -20,6 +22,10 @@ export async function exportManufacturingPackage(projectName = 'AltiEDA_Project'
   folder.file(`${projectName}-F_Cu.gbr`,      generateTopCopperGerber());
   folder.file(`${projectName}-B_Cu.gbr`,      generateBottomCopperGerber());
   folder.file(`${projectName}-F_SilkS.gbr`,   generateSilkscreenGerber());
+  folder.file(`${projectName}-F_Mask.gbr`,     generateSolderMaskGerber('top'));
+  folder.file(`${projectName}-B_Mask.gbr`,     generateSolderMaskGerber('bottom'));
+  folder.file(`${projectName}-F_Paste.gbr`,    generateSolderPasteGerber('top'));
+  folder.file(`${projectName}-B_Paste.gbr`,    generateSolderPasteGerber('bottom'));
 
   // Drill file
   folder.file(`${projectName}.drl`,           generateExcellonDrillFile());
@@ -38,6 +44,10 @@ export async function exportManufacturingPackage(projectName = 'AltiEDA_Project'
     '  *-F_Cu.gbr     → Top copper layer (RS-274X Gerber)',
     '  *-B_Cu.gbr     → Bottom copper layer (RS-274X Gerber)',
     '  *-F_SilkS.gbr  → Front silkscreen (RS-274X Gerber)',
+    '  *-F_Mask.gbr   → Top solder mask (RS-274X Gerber)',
+    '  *-B_Mask.gbr   → Bottom solder mask (RS-274X Gerber)',
+    '  *-F_Paste.gbr  → Top solder paste (RS-274X Gerber)',
+    '  *-B_Paste.gbr  → Bottom solder paste (RS-274X Gerber)',
     '  *.drl           → NC drill file (Excellon)',
     '  *_BOM.csv      → Bill of Materials',
     '  *_CPL.csv      → Pick-and-Place (Component Position)',

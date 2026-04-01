@@ -41,7 +41,14 @@
           <div class="menu-entry" id="menu-zoomin">Zoom In <span class="shortcut">+</span></div>
           <div class="menu-entry" id="menu-zoomout">Zoom Out <span class="shortcut">-</span></div>
           <div class="menu-sep"></div>
+          <div class="menu-entry" id="menu-zoom25">Zoom 25%</div>
+          <div class="menu-entry" id="menu-zoom50">Zoom 50%</div>
+          <div class="menu-entry" id="menu-zoom100">Zoom 100%</div>
+          <div class="menu-entry" id="menu-zoom200">Zoom 200%</div>
+          <div class="menu-sep"></div>
           <div class="menu-entry" id="menu-grid">Toggle Grid <span class="shortcut">G</span></div>
+          <div class="menu-entry" id="menu-layers">Layer Visibility…</div>
+          <div class="menu-entry" id="menu-minimap">Toggle Mini-map <span class="shortcut">M</span></div>
         </div>
       </div>
       <div class="menu-item" tabindex="0">Place
@@ -49,6 +56,8 @@
           <div class="menu-entry" id="menu-wire">Wire <span class="shortcut">W</span></div>
           <div class="menu-entry" id="menu-via">Via <span class="shortcut">V</span></div>
           <div class="menu-entry" id="menu-probe">Probe <span class="shortcut">P</span></div>
+          <div class="menu-entry" id="menu-netlabel">Net Label <span class="shortcut">L</span></div>
+          <div class="menu-entry" id="menu-measure">Measure <span class="shortcut">R</span></div>
         </div>
       </div>
       <div class="menu-item" tabindex="0">Tools
@@ -60,6 +69,10 @@
           <div class="menu-entry" id="btn-dc-sweep">DC Sweep</div>
           <div class="menu-entry" id="btn-noise-analysis">Noise Analysis</div>
           <div class="menu-entry" id="btn-impedance">Impedance Calculator</div>
+          <div class="menu-sep"></div>
+          <div class="menu-entry" id="menu-grid-settings">Grid &amp; Snap Settings…</div>
+          <div class="menu-entry" id="menu-project-info">Project Info…</div>
+          <div class="menu-entry" id="menu-settings">Preferences…</div>
           <div class="menu-sep"></div>
           <div class="menu-entry" id="menu-comp-editor" onclick="window.open('component-editor.html','_blank')">Component Editor</div>
         </div>
@@ -276,6 +289,23 @@
           </div>
           <canvas id="osc-canvas" width="640" height="200"></canvas>
         </div>
+
+        <!-- Layer visibility panel -->
+        <div id="layer-panel" class="float-panel hidden" style="right:8px;left:auto;top:80px;width:220px;">
+          <div class="float-panel-header">
+            <span>Layers</span>
+            <button id="btn-close-layers" class="icon-btn">✕</button>
+          </div>
+          <div id="layer-list" style="padding:8px;max-height:260px;overflow-y:auto;"></div>
+        </div>
+
+        <!-- Mini-map -->
+        <canvas id="minimap-canvas" width="180" height="130" class="hidden"></canvas>
+
+        <!-- Measurement overlay -->
+        <div id="measure-info" class="hidden" style="position:absolute;top:60px;left:50%;transform:translateX(-50%);
+          background:var(--bg3);border:1px solid var(--accent);border-radius:4px;padding:6px 14px;
+          font-size:12px;color:var(--accent);z-index:200;font-family:monospace;pointer-events:none;"></div>
       </div>
 
       <!-- Right panel: Properties -->

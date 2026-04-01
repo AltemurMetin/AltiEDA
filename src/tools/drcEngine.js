@@ -16,6 +16,7 @@ export function runDRC(rules = defaultDRCRules) {
     ...checkUnconnectedPins(),
     ...checkCopperPours(rules),
     ...checkHighSpeedRules(rules),
+    ...checkCourtyardOverlap(),
   ];
 
   const errors   = violations.filter(v => v.severity === 'error');
@@ -512,4 +513,47 @@ export function renderDRCPanel(result) {
   }
 
   return result;
+}
+
+// ── #14 Courtyard Overlap Check ──────────────────────────────────────────────
+function checkCourtyardOverlap() {
+  const violations = [];
+  const pcbComps = Object.values(state.pcb.components);
+  if (pcbComps.length < 2) return violations;
+
+  // Build bounding boxes from courtyards
+  const boxes = [];
+  for (const comp of pcbComps) {
+    const fp = FOOTPRINT_MAP[comp.footprintId];
+    if (!fp || !fp.courtyard || fp.courtyard.length < 2) continue;
+    const cos = Math.cos((comp.rotation || 0) * Math.PI / 180);
+    const sin = Math.sin((comp.rotation || 0) * Math.PI / 180);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [cx, cy] of fp.courtyard) {
+      // Convert mm to grid units and apply rotation
+      const rx = (cx * cos - cy * sin) / 2.54 + comp.x;
+      const ry = (cx * sin + cy * cos) / 2.54 + comp.y;
+      minX = Math.min(minX, rx); minY = Math.min(minY, ry);
+      maxX = Math.max(maxX, rx); maxY = Math.max(maxY, ry);
+    }
+    boxes.push({ id: comp.id, minX, minY, maxX, maxY });
+  }
+
+  // Check all pairs for overlap
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      if (a.maxX > b.minX && a.minX < b.maxX && a.maxY > b.minY && a.minY < b.maxY) {
+        const cx = ((Math.max(a.minX, b.minX) + Math.min(a.maxX, b.maxX)) / 2);
+        const cy = ((Math.max(a.minY, b.minY) + Math.min(a.maxY, b.maxY)) / 2);
+        violations.push({
+          type: 'courtyard_overlap',
+          severity: 'warning',
+          message: `Courtyard overlap: ${a.id} and ${b.id}`,
+          x: cx, y: cy,
+        });
+      }
+    }
+  }
+  return violations;
 }

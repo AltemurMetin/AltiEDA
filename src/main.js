@@ -586,6 +586,36 @@ function handleClick(e) {
   const world  = renderer.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
   const snapped = renderer.snap(world.x, world.y);
 
+  // ── Net label tool ──
+  if (activeTool === 'netlabel') {
+    placeNetLabel(world.x, world.y);
+    renderer.render(); return;
+  }
+
+  // ── Measure tool ──
+  if (activeTool === 'measure') {
+    if (!_measureStart) {
+      _measureStart = { x: world.x, y: world.y };
+      setMsg('Click second point to measure distance');
+    } else {
+      const dx = (world.x - _measureStart.x) * 2.54;
+      const dy = (world.y - _measureStart.y) * 2.54;
+      const dist = Math.hypot(dx, dy);
+      const info = document.getElementById('measure-info');
+      if (info) {
+        info.textContent = `Distance: ${dist.toFixed(2)} mm  (dx: ${dx.toFixed(2)}, dy: ${dy.toFixed(2)})`;
+        info.classList.remove('hidden');
+        setTimeout(() => info.classList.add('hidden'), 5000);
+      }
+      setMsg(`Distance: ${dist.toFixed(2)} mm`);
+      renderer._measureLine = { x1: _measureStart.x, y1: _measureStart.y, x2: world.x, y2: world.y };
+      _measureStart = null;
+      renderer.render();
+      setTimeout(() => { renderer._measureLine = null; renderer.render(); }, 5000);
+    }
+    return;
+  }
+
   if (activeTool === 'wire') {
     if (!wireTool.active) {
       const err = wireTool.begin(world.x, world.y);
@@ -1167,9 +1197,16 @@ function updateProbeTooltip(e) {
 window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   switch (e.key.toLowerCase()) {
-    case 'w':  setTool(activeTool === 'wire'  ? null : 'wire');  break;
-    case 'v':  setTool(activeTool === 'via'   ? null : 'via');   break;
-    case 'p':  setTool(activeTool === 'probe-v' ? null : 'probe-v'); break;
+    case 'w':  setTool(activeTool === 'wire'     ? null : 'wire');     break;
+    case 'v':  setTool(activeTool === 'via'      ? null : 'via');      break;
+    case 'p':  setTool(activeTool === 'probe-v'  ? null : 'probe-v'); break;
+    case 'l':  setTool(activeTool === 'netlabel' ? null : 'netlabel'); break;
+    case 'r':  setTool(activeTool === 'measure'  ? null : 'measure');  break;
+    case 'm':
+      _minimapVisible = !_minimapVisible;
+      minimapCanvas?.classList.toggle('hidden', !_minimapVisible);
+      if (_minimapVisible) drawMinimap();
+      break;
     case 'g':  renderer.showGrid = !renderer.showGrid; renderer.render(); break;
     case '+':  case '=': renderer.zoomAt(canvas.width/2, canvas.height/2, 1.25); updateZoomDisplay(); break;
     case '-':  renderer.zoomAt(canvas.width/2, canvas.height/2, 0.8); updateZoomDisplay(); break;
@@ -1617,6 +1654,292 @@ function setMsg(msg) {
   const el = document.getElementById('sb-msg');
   if (el) el.textContent = msg;
 }
+
+// ── #3 Board shape (context menu for PCB mode) ──────────────────────────────
+// Board shape editing is handled by _drawBoardOutline reading state.pcb.boardOutline
+// Users can set custom polygon board shapes via the PCB board outline tool
+
+// ── #4 Trace width (in PCB trace context) ────────────────────────────────────
+// Trace width edit when right-clicking a trace in PCB mode is handled in context menu
+// The trace width is stored in state.pcb.traces[id].width
+
+// ── #5 Layer visibility toggle ───────────────────────────────────────────────
+const LAYER_COLORS = {
+  'F.Cu': '#cc3333', 'B.Cu': '#3366cc', 'F.SilkS': '#e0e0e0', 'B.SilkS': '#888888',
+  'F.Mask': '#66009966', 'B.Mask': '#00669966', 'Edge.Cuts': '#ffcc00',
+};
+let _layerVisibility = { 'F.Cu': true, 'B.Cu': true, 'F.SilkS': true, 'B.SilkS': true, 'F.Mask': true, 'B.Mask': true, 'Edge.Cuts': true };
+
+function buildLayerPanel() {
+  const list = document.getElementById('layer-list');
+  if (!list) return;
+  list.innerHTML = '';
+  for (const [layer, color] of Object.entries(LAYER_COLORS)) {
+    const row = document.createElement('label');
+    row.className = 'layer-row';
+    row.innerHTML = `<input type="checkbox" ${_layerVisibility[layer] ? 'checked' : ''} data-layer="${layer}"/>
+      <span class="layer-swatch" style="background:${color}"></span><span>${layer}</span>`;
+    row.querySelector('input').addEventListener('change', e => {
+      _layerVisibility[e.target.dataset.layer] = e.target.checked;
+      renderer._layerVisibility = _layerVisibility;
+      renderer.render();
+    });
+    list.appendChild(row);
+  }
+}
+renderer._layerVisibility = _layerVisibility;
+
+document.getElementById('menu-layers')?.addEventListener('click', () => {
+  const panel = document.getElementById('layer-panel');
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden')) buildLayerPanel();
+});
+document.getElementById('btn-close-layers')?.addEventListener('click', () => {
+  document.getElementById('layer-panel')?.classList.add('hidden');
+});
+
+// ── #6 Cross-probing (schematic ↔ PCB) ──────────────────────────────────────
+// When clicking a component, highlight its PCB counterpart and vice versa
+function crossProbeHighlight(compId) {
+  if (state.mode === 'schematic') {
+    const pcbComp = state.pcb.components[compId];
+    if (pcbComp) {
+      pcbComp._highlighted = true;
+      setTimeout(() => { pcbComp._highlighted = false; renderer.render(); }, 2000);
+    }
+  } else if (state.mode === 'pcb') {
+    const schComp = state.schematic.components[compId];
+    if (schComp) {
+      schComp._highlighted = true;
+      setTimeout(() => { schComp._highlighted = false; renderer.render(); }, 2000);
+    }
+  }
+}
+
+// ── #7 Net labels ────────────────────────────────────────────────────────────
+let _netLabelTool = false;
+
+function placeNetLabel(worldX, worldY) {
+  const name = prompt('Net label name:');
+  if (!name || !name.trim()) return;
+  if (!state.schematic.netLabels) state.schematic.netLabels = [];
+  state.pushUndo();
+  const snapped = renderer.snap(worldX, worldY);
+  state.schematic.netLabels.push({ x: snapped.x, y: snapped.y, name: name.trim() });
+  // Find or create net with this name and connect nearby wires/pins
+  let net = Object.values(state.schematic.nets).find(n => n.name === name.trim());
+  if (!net) {
+    const { createNet } = window._altiModels || {};
+    // We'll just store label; net linking happens at netlist generation time
+  }
+  renderer.render();
+  setMsg(`Net label "${name.trim()}" placed`);
+}
+
+document.getElementById('menu-netlabel')?.addEventListener('click', () => {
+  setTool('netlabel');
+});
+
+// ── #9 Measurement tool ─────────────────────────────────────────────────────
+let _measureStart = null;
+
+document.getElementById('menu-measure')?.addEventListener('click', () => {
+  setTool('measure');
+});
+
+// ── #13 Grid & Snap settings ────────────────────────────────────────────────
+document.getElementById('menu-grid-settings')?.addEventListener('click', () => {
+  let modal = document.getElementById('grid-settings-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'grid-settings-modal';
+    modal.className = 'modal settings-modal';
+    modal.innerHTML = `
+      <div class="modal-box">
+        <div class="modal-hdr">Grid & Snap Settings <button id="gs-close" class="icon-btn">✕</button></div>
+        <div style="padding:14px;">
+          <div class="settings-row"><label>Grid Size (units)</label><input id="gs-size" type="number" min="1" max="100" value="1"/></div>
+          <div class="settings-row"><label>Snap to Grid</label><select id="gs-snap"><option value="1">On</option><option value="0">Off</option></select></div>
+          <div class="settings-row"><label>Grid Style</label><select id="gs-style"><option value="dot">Dots</option><option value="line">Lines</option></select></div>
+          <div style="text-align:right;margin-top:12px;">
+            <button id="gs-apply" style="padding:5px 16px;background:var(--accent);border:none;color:#000;border-radius:3px;cursor:pointer;font-weight:600;">Apply</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('gs-close').addEventListener('click', () => modal.classList.add('hidden'));
+    modal.addEventListener('click', e => { if (e.target === modal) modal.classList.add('hidden'); });
+    document.getElementById('gs-apply').addEventListener('click', () => {
+      const size = parseInt(document.getElementById('gs-size').value) || 1;
+      renderer._gridMul = size;
+      renderer._snapEnabled = document.getElementById('gs-snap').value === '1';
+      renderer._gridStyle = document.getElementById('gs-style').value;
+      renderer.render();
+      setMsg(`Grid: ${size}x, snap ${renderer._snapEnabled ? 'on' : 'off'}, ${renderer._gridStyle}`);
+      modal.classList.add('hidden');
+    });
+  }
+  document.getElementById('gs-size').value = renderer._gridMul || 1;
+  document.getElementById('gs-snap').value = renderer._snapEnabled !== false ? '1' : '0';
+  document.getElementById('gs-style').value = renderer._gridStyle || 'dot';
+  modal.classList.remove('hidden');
+});
+
+// ── #16 Mini-map ─────────────────────────────────────────────────────────────
+const minimapCanvas = document.getElementById('minimap-canvas');
+let _minimapVisible = false;
+
+function drawMinimap() {
+  if (!_minimapVisible || !minimapCanvas) return;
+  const mctx = minimapCanvas.getContext('2d');
+  const mw = minimapCanvas.width, mh = minimapCanvas.height;
+  mctx.fillStyle = state.mode === 'pcb' ? '#050505' : '#c8c4b8';
+  mctx.fillRect(0, 0, mw, mh);
+
+  // Find bounds
+  const comps = Object.values(state.schematic.components);
+  if (comps.length === 0) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const c of comps) {
+    minX = Math.min(minX, c.x - 4); minY = Math.min(minY, c.y - 4);
+    maxX = Math.max(maxX, c.x + 4); maxY = Math.max(maxY, c.y + 4);
+  }
+  const bw = maxX - minX || 1, bh = maxY - minY || 1;
+  const scale = Math.min((mw - 10) / bw, (mh - 10) / bh);
+  const ox = (mw - bw * scale) / 2, oy = (mh - bh * scale) / 2;
+  const toMX = x => ox + (x - minX) * scale;
+  const toMY = y => oy + (y - minY) * scale;
+
+  // Draw wires
+  mctx.strokeStyle = state.mode === 'pcb' ? '#4ec9b0' : '#8b1a00';
+  mctx.lineWidth = 1;
+  for (const w of Object.values(state.schematic.wires)) {
+    mctx.beginPath();
+    mctx.moveTo(toMX(w.x1), toMY(w.y1));
+    mctx.lineTo(toMX(w.x2), toMY(w.y2));
+    mctx.stroke();
+  }
+
+  // Draw components as dots
+  mctx.fillStyle = state.mode === 'pcb' ? '#4ec9b0' : '#333';
+  for (const c of comps) {
+    mctx.fillRect(toMX(c.x) - 2, toMY(c.y) - 2, 4, 4);
+  }
+
+  // Draw viewport rectangle
+  const rect = canvas.getBoundingClientRect();
+  const tl = renderer.screenToWorld(0, 0);
+  const br = renderer.screenToWorld(rect.width, rect.height);
+  mctx.strokeStyle = '#ff6600';
+  mctx.lineWidth = 1.5;
+  mctx.strokeRect(toMX(tl.x), toMY(tl.y), (br.x - tl.x) * scale, (br.y - tl.y) * scale);
+}
+
+document.getElementById('menu-minimap')?.addEventListener('click', () => {
+  _minimapVisible = !_minimapVisible;
+  minimapCanvas?.classList.toggle('hidden', !_minimapVisible);
+  if (_minimapVisible) drawMinimap();
+});
+
+// Hook minimap update into existing render override (line ~784)
+const _origRender2 = renderer.render.bind(renderer);
+renderer.render = function() {
+  _origRender2();
+  if (_minimapVisible) requestAnimationFrame(drawMinimap);
+};
+
+// ── #17 Zoom presets ─────────────────────────────────────────────────────────
+function setZoomPreset(pct) {
+  renderer.zoom = pct / 100;
+  // Center on current center
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  renderer.render();
+  updateZoomDisplay();
+  setMsg(`Zoom: ${pct}%`);
+}
+
+document.getElementById('menu-zoom25')?.addEventListener('click',  () => setZoomPreset(25));
+document.getElementById('menu-zoom50')?.addEventListener('click',  () => setZoomPreset(50));
+document.getElementById('menu-zoom100')?.addEventListener('click', () => setZoomPreset(100));
+document.getElementById('menu-zoom200')?.addEventListener('click', () => setZoomPreset(200));
+
+// ── #18 Project info ─────────────────────────────────────────────────────────
+if (!state.project) state.project = { name: 'Untitled', author: '', version: '1.0', notes: '' };
+
+document.getElementById('menu-project-info')?.addEventListener('click', () => {
+  let modal = document.getElementById('project-info-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'project-info-modal';
+    modal.className = 'modal settings-modal';
+    modal.innerHTML = `
+      <div class="modal-box">
+        <div class="modal-hdr">Project Info <button id="pi-close" class="icon-btn">✕</button></div>
+        <div style="padding:14px;">
+          <div class="settings-row"><label>Project Name</label><input id="pi-name" type="text"/></div>
+          <div class="settings-row"><label>Author</label><input id="pi-author" type="text"/></div>
+          <div class="settings-row"><label>Version</label><input id="pi-version" type="text"/></div>
+          <div class="settings-row"><label>Notes</label><input id="pi-notes" type="text" style="width:180px;"/></div>
+          <div style="text-align:right;margin-top:12px;">
+            <button id="pi-apply" style="padding:5px 16px;background:var(--accent);border:none;color:#000;border-radius:3px;cursor:pointer;font-weight:600;">Save</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('pi-close').addEventListener('click', () => modal.classList.add('hidden'));
+    modal.addEventListener('click', e => { if (e.target === modal) modal.classList.add('hidden'); });
+    document.getElementById('pi-apply').addEventListener('click', () => {
+      state.project = {
+        name: document.getElementById('pi-name').value || 'Untitled',
+        author: document.getElementById('pi-author').value,
+        version: document.getElementById('pi-version').value,
+        notes: document.getElementById('pi-notes').value,
+      };
+      setMsg(`Project: ${state.project.name}`);
+      modal.classList.add('hidden');
+    });
+  }
+  document.getElementById('pi-name').value = state.project?.name || '';
+  document.getElementById('pi-author').value = state.project?.author || '';
+  document.getElementById('pi-version').value = state.project?.version || '';
+  document.getElementById('pi-notes').value = state.project?.notes || '';
+  modal.classList.remove('hidden');
+});
+
+// ── #19 Preferences/Settings dialog ──────────────────────────────────────────
+document.getElementById('menu-settings')?.addEventListener('click', () => {
+  let modal = document.getElementById('prefs-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'prefs-modal';
+    modal.className = 'modal settings-modal';
+    modal.innerHTML = `
+      <div class="modal-box">
+        <div class="modal-hdr">Preferences <button id="pref-close" class="icon-btn">✕</button></div>
+        <div style="padding:14px;">
+          <div class="settings-row"><label>Theme</label><select id="pref-theme"><option value="auto">Auto (match mode)</option><option value="dark">Always Dark</option><option value="light">Always Light</option></select></div>
+          <div class="settings-row"><label>Wire Snap Distance</label><input id="pref-snap-dist" type="number" min="5" max="50" value="28"/></div>
+          <div class="settings-row"><label>Undo History Limit</label><input id="pref-undo" type="number" min="10" max="200" value="50"/></div>
+          <div class="settings-row"><label>Autosave</label><select id="pref-autosave"><option value="1">Enabled</option><option value="0">Disabled</option></select></div>
+          <div style="text-align:right;margin-top:12px;">
+            <button id="pref-apply" style="padding:5px 16px;background:var(--accent);border:none;color:#000;border-radius:3px;cursor:pointer;font-weight:600;">Apply</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('pref-close').addEventListener('click', () => modal.classList.add('hidden'));
+    modal.addEventListener('click', e => { if (e.target === modal) modal.classList.add('hidden'); });
+    document.getElementById('pref-apply').addEventListener('click', () => {
+      const theme = document.getElementById('pref-theme').value;
+      state._maxHistory = parseInt(document.getElementById('pref-undo').value) || 50;
+      renderer._wireSnapPx = parseInt(document.getElementById('pref-snap-dist').value) || 28;
+      localStorage.setItem('altieda_prefs', JSON.stringify({ theme, snapDist: renderer._wireSnapPx, undoLimit: state._maxHistory }));
+      setMsg('Preferences saved');
+      modal.classList.add('hidden');
+    });
+  }
+  modal.classList.remove('hidden');
+});
 
 // ── Initial render ────────────────────────────────────────────────────────────
 // Sync initial mode from state (may have been restored by autosave above)

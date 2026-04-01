@@ -280,10 +280,13 @@ export class CanvasRenderer {
       this._drawRatsnest();
       this._drawDRC();
       if (this._wirePreview) this._drawWirePreview();
+      this._drawNetLabels();
     }
 
-    // Rubber-band selection overlay (drawn in screen coords, not world)
+    // Overlays (both modes)
+    if (this._measureLine) this._drawMeasureLine();
     if (this._rubberBand) this._drawRubberBand();
+    this._drawTitleBlock();
   }
 
   _drawRubberBand() {
@@ -303,6 +306,117 @@ export class CanvasRenderer {
     ctx.fillRect(x, y, w, h);
     ctx.strokeRect(x, y, w, h);
     ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  /* ── Net Labels ────────────────────────────────────────────────────────── */
+  _drawNetLabels() {
+    const labels = state.schematic.netLabels;
+    if (!labels || labels.length === 0) return;
+    const { ctx, zoom } = this;
+    const fontSize = Math.max(10, 12 * zoom);
+    ctx.font = `bold ${fontSize}px monospace`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    for (const lbl of labels) {
+      const s = this.w2s(lbl.x, lbl.y);
+      // Flag shape
+      const tw = ctx.measureText(lbl.name).width + 8;
+      const th = fontSize + 4;
+      ctx.fillStyle = 'rgba(0, 100, 200, 0.15)';
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x + 6, s.y - th / 2);
+      ctx.lineTo(s.x + tw + 6, s.y - th / 2);
+      ctx.lineTo(s.x + tw + 6, s.y + th / 2);
+      ctx.lineTo(s.x + 6, s.y + th / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#0066cc';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // Label text
+      ctx.fillStyle = '#0066cc';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(lbl.name, s.x + 8, s.y);
+      // Anchor dot
+      ctx.fillStyle = '#0066cc';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  /* ── Measurement line overlay ──────────────────────────────────────────── */
+  _drawMeasureLine() {
+    const m = this._measureLine;
+    if (!m) return;
+    const { ctx } = this;
+    const p1 = this.w2s(m.x1, m.y1);
+    const p2 = this.w2s(m.x2, m.y2);
+    ctx.save();
+    ctx.strokeStyle = '#ff6600';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 3]);
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Distance label at midpoint
+    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+    const dx = (m.x2 - m.x1) * 2.54, dy = (m.y2 - m.y1) * 2.54;
+    const dist = Math.hypot(dx, dy);
+    ctx.font = 'bold 12px monospace';
+    ctx.fillStyle = '#ff6600';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${dist.toFixed(2)} mm`, mx, my - 8);
+    // Endpoint markers
+    for (const p of [p1, p2]) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff6600';
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /* ── Title Block (bottom-right corner) ─────────────────────────────────── */
+  _drawTitleBlock() {
+    if (state.mode === 'pcb') return; // Only in schematic mode
+    const project = state.project;
+    if (!project || !project.name) return;
+    const { ctx, canvas } = this;
+    const padding = 10;
+    const bw = 220, bh = 60;
+    const bx = canvas.width - bw - padding;
+    const by = canvas.height - bh - padding - 24; // above statusbar
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = 'rgba(200, 196, 184, 0.85)';
+    ctx.strokeStyle = '#8b1a00';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeRect(bx, by, bw, bh);
+    // Divider
+    ctx.beginPath();
+    ctx.moveTo(bx, by + 22);
+    ctx.lineTo(bx + bw, by + 22);
+    ctx.stroke();
+    // Text
+    ctx.fillStyle = '#1a0a00';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(project.name || 'Untitled', bx + 8, by + 4);
+    ctx.font = '10px sans-serif';
+    ctx.fillStyle = '#555';
+    ctx.fillText(`Author: ${project.author || '—'}`, bx + 8, by + 28);
+    ctx.fillText(`Rev: ${project.version || '—'}`, bx + 8, by + 42);
+    const dateStr = new Date().toLocaleDateString();
+    ctx.textAlign = 'right';
+    ctx.fillText(dateStr, bx + bw - 8, by + 42);
     ctx.restore();
   }
 

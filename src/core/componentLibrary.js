@@ -940,6 +940,251 @@ export const COMPONENT_LIBRARY = [
       P(8, 'VCC',  PinType.POWER_IN,      30, -21),
     ],
   },
+
+  // ── Logic Gates ──────────────────────────────────────────────────────────────
+  {
+    partId: '74HC00', partName: '74HC00 Quad NAND', category: 'Logic', defaultValue: '',
+    footprintId: 'DIP-14', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt 74HC00' },
+    pins: [...rowL(1, ['1A','1B','2A','2B','GND','3A','3B'],[PinType.INPUT,PinType.INPUT,PinType.INPUT,PinType.INPUT,PinType.POWER_IN,PinType.INPUT,PinType.INPUT]),
+           ...rowR(8, ['3Y','4A','4B','4Y','VCC','2Y','1Y'],[PinType.OUTPUT,PinType.INPUT,PinType.INPUT,PinType.OUTPUT,PinType.POWER_IN,PinType.OUTPUT,PinType.OUTPUT])],
+  },
+  {
+    partId: '74HC04', partName: '74HC04 Hex Inverter', category: 'Logic', defaultValue: '',
+    footprintId: 'DIP-14', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt 74HC04' },
+    pins: [...rowL(1, ['1A','1Y','2A','2Y','3A','3Y','GND'],[PinType.INPUT,PinType.OUTPUT,PinType.INPUT,PinType.OUTPUT,PinType.INPUT,PinType.OUTPUT,PinType.POWER_IN]),
+           ...rowR(8, ['VCC','6Y','6A','5Y','5A','4Y','4A'],[PinType.POWER_IN,PinType.OUTPUT,PinType.INPUT,PinType.OUTPUT,PinType.INPUT,PinType.OUTPUT,PinType.INPUT])],
+  },
+  {
+    partId: '74HC08', partName: '74HC08 Quad AND', category: 'Logic', defaultValue: '',
+    footprintId: 'DIP-14', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt 74HC08' },
+    pins: [...rowL(1, ['1A','1B','1Y','2A','2B','2Y','GND'],[PinType.INPUT,PinType.INPUT,PinType.OUTPUT,PinType.INPUT,PinType.INPUT,PinType.OUTPUT,PinType.POWER_IN]),
+           ...rowR(8, ['VCC','4Y','4B','4A','3Y','3B','3A'],[PinType.POWER_IN,PinType.OUTPUT,PinType.INPUT,PinType.INPUT,PinType.OUTPUT,PinType.INPUT,PinType.INPUT])],
+  },
+  {
+    partId: '74HC32', partName: '74HC32 Quad OR', category: 'Logic', defaultValue: '',
+    footprintId: 'DIP-14', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt 74HC32' },
+    pins: [...rowL(1, ['1A','1B','1Y','2A','2B','2Y','GND'],[PinType.INPUT,PinType.INPUT,PinType.OUTPUT,PinType.INPUT,PinType.INPUT,PinType.OUTPUT,PinType.POWER_IN]),
+           ...rowR(8, ['VCC','4Y','4B','4A','3Y','3B','3A'],[PinType.POWER_IN,PinType.OUTPUT,PinType.INPUT,PinType.INPUT,PinType.OUTPUT,PinType.INPUT,PinType.INPUT])],
+  },
+  {
+    partId: '74HC86', partName: '74HC86 Quad XOR', category: 'Logic', defaultValue: '',
+    footprintId: 'DIP-14', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt 74HC86' },
+    pins: [...rowL(1, ['1A','1B','1Y','2A','2B','2Y','GND'],[PinType.INPUT,PinType.INPUT,PinType.OUTPUT,PinType.INPUT,PinType.INPUT,PinType.OUTPUT,PinType.POWER_IN]),
+           ...rowR(8, ['VCC','4Y','4B','4A','3Y','3B','3A'],[PinType.POWER_IN,PinType.OUTPUT,PinType.INPUT,PinType.INPUT,PinType.OUTPUT,PinType.INPUT,PinType.INPUT])],
+  },
+  {
+    partId: '74HC138', partName: '74HC138 3-to-8 Decoder', category: 'Logic', defaultValue: '',
+    footprintId: 'DIP-16', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt 74HC138' },
+    pins: [...rowL(1, ['A','B','C','G2A','G2B','G1','Y7','GND'],[PinType.INPUT,PinType.INPUT,PinType.INPUT,PinType.INPUT,PinType.INPUT,PinType.INPUT,PinType.OUTPUT,PinType.POWER_IN]),
+           ...rowR(9, ['VCC','Y0','Y1','Y2','Y3','Y4','Y5','Y6'],[PinType.POWER_IN,PinType.OUTPUT,PinType.OUTPUT,PinType.OUTPUT,PinType.OUTPUT,PinType.OUTPUT,PinType.OUTPUT,PinType.OUTPUT])],
+  },
+  {
+    partId: '74HC245', partName: '74HC245 Octal Bus', category: 'Logic', defaultValue: '',
+    footprintId: 'DIP-20', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt 74HC245' },
+    pins: [...rowL(1, ['DIR','A1','A2','A3','A4','A5','A6','A7','A8','GND'],[PinType.INPUT,...Array(8).fill(PinType.BIDIRECTIONAL),PinType.POWER_IN]),
+           ...rowR(11, ['VCC','OE','B8','B7','B6','B5','B4','B3','B2','B1'],[PinType.POWER_IN,PinType.INPUT,...Array(8).fill(PinType.BIDIRECTIONAL)])],
+  },
+
+  // ── Op-Amps ──────────────────────────────────────────────────────────────────
+  {
+    partId: 'LM741', partName: 'LM741 Op-Amp', category: 'IC', defaultValue: '',
+    footprintId: 'DIP-8', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt LM741' },
+    pins: [
+      P(1, 'OFFSET_N1', PinType.PASSIVE, -30, -21), P(2, 'IN-', PinType.INPUT, -30, -7),
+      P(3, 'IN+', PinType.INPUT, -30, 7), P(4, 'V-', PinType.POWER_IN, -30, 21),
+      P(5, 'OFFSET_N2', PinType.PASSIVE, 30, 21), P(6, 'OUT', PinType.OUTPUT, 30, 7),
+      P(7, 'V+', PinType.POWER_IN, 30, -7), P(8, 'NC', PinType.NO_CONNECT, 30, -21),
+    ],
+  },
+  {
+    partId: 'TL072', partName: 'TL072 Dual Op-Amp', category: 'IC', defaultValue: '',
+    footprintId: 'DIP-8', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt TL072' },
+    pins: [
+      P(1, '1OUT', PinType.OUTPUT, -30, -21), P(2, '1IN-', PinType.INPUT, -30, -7),
+      P(3, '1IN+', PinType.INPUT, -30, 7), P(4, 'VCC-', PinType.POWER_IN, -30, 21),
+      P(5, '2IN+', PinType.INPUT, 30, 21), P(6, '2IN-', PinType.INPUT, 30, 7),
+      P(7, '2OUT', PinType.OUTPUT, 30, -7), P(8, 'VCC+', PinType.POWER_IN, 30, -21),
+    ],
+  },
+  {
+    partId: 'AD620', partName: 'AD620 Inst. Amp', category: 'IC', defaultValue: '',
+    footprintId: 'DIP-8', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt AD620' },
+    pins: [
+      P(1, 'RG', PinType.PASSIVE, -30, -21), P(2, '-IN', PinType.INPUT, -30, -7),
+      P(3, '+IN', PinType.INPUT, -30, 7), P(4, 'V-', PinType.POWER_IN, -30, 21),
+      P(5, 'REF', PinType.INPUT, 30, 21), P(6, 'OUT', PinType.OUTPUT, 30, 7),
+      P(7, 'V+', PinType.POWER_IN, 30, -7), P(8, 'RG', PinType.PASSIVE, 30, -21),
+    ],
+  },
+
+  // ── Power (additional) ──────────────────────────────────────────────────────
+  {
+    partId: 'LM7812', partName: 'LM7812 12V Regulator', category: 'Power', defaultValue: '12V',
+    footprintId: 'TO-220', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt LM7812' },
+    pins: [ P(1, 'IN', PinType.POWER_IN, -30, 0), P(2, 'GND', PinType.POWER_IN, 0, 20), P(3, 'OUT', PinType.POWER_OUT, 30, 0) ],
+  },
+  {
+    partId: 'LM2596', partName: 'LM2596 Buck Converter', category: 'Power', defaultValue: '3.3V',
+    footprintId: 'TO-263', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt LM2596' },
+    pins: [
+      P(1, 'VIN', PinType.POWER_IN, -30, -10), P(2, 'VOUT', PinType.POWER_OUT, 30, -10),
+      P(3, 'GND', PinType.POWER_IN, 0, 20), P(4, 'FB', PinType.INPUT, 30, 10), P(5, 'ON/OFF', PinType.INPUT, -30, 10),
+    ],
+  },
+
+  // ── Sensors (additional) ────────────────────────────────────────────────────
+  {
+    partId: 'LM35', partName: 'LM35 Temp Sensor', category: 'Sensor', defaultValue: '',
+    footprintId: 'TO-92', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt LM35' },
+    pins: [ P(1, 'VCC', PinType.POWER_IN, -20, 0), P(2, 'VOUT', PinType.OUTPUT, 0, -20), P(3, 'GND', PinType.POWER_IN, 20, 0) ],
+  },
+  {
+    partId: 'INA219', partName: 'INA219 Current Sensor', category: 'Sensor', defaultValue: '',
+    footprintId: 'SOT-23-5', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt INA219' },
+    pins: [
+      P(1, 'A1', PinType.INPUT, -30, -14), P(2, 'A0', PinType.INPUT, -30, 0),
+      P(3, 'SDA', PinType.BIDIRECTIONAL, -30, 14), P(4, 'SCL', PinType.INPUT, 30, 14),
+      P(5, 'VS', PinType.POWER_IN, 30, -14), P(6, 'GND', PinType.POWER_IN, 30, 0),
+    ],
+  },
+  {
+    partId: 'ADXL345', partName: 'ADXL345 Accelerometer', category: 'Sensor', defaultValue: '',
+    footprintId: 'LGA-14', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt ADXL345' },
+    pins: [...rowL(1, ['VCC','GND','CS','INT1','INT2','SDO','SDA'],[PinType.POWER_IN,PinType.POWER_IN,PinType.INPUT,PinType.OUTPUT,PinType.OUTPUT,PinType.OUTPUT,PinType.BIDIRECTIONAL]),
+           ...rowR(8, ['SCL','NC','NC','NC','NC','NC','VS'],[PinType.INPUT,PinType.NO_CONNECT,PinType.NO_CONNECT,PinType.NO_CONNECT,PinType.NO_CONNECT,PinType.NO_CONNECT,PinType.POWER_IN])],
+  },
+
+  // ── Motor Drivers ──────────────────────────────────────────────────────────
+  {
+    partId: 'DRV8833', partName: 'DRV8833 Motor Driver', category: 'Driver', defaultValue: '',
+    footprintId: 'DIP-16', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt DRV8833' },
+    pins: [...rowL(1, ['nSLEEP','AOUT1','AOUT2','BOUT2','BOUT1','nFAULT','AIN2','AIN1'],[PinType.INPUT,PinType.OUTPUT,PinType.OUTPUT,PinType.OUTPUT,PinType.OUTPUT,PinType.OUTPUT,PinType.INPUT,PinType.INPUT]),
+           ...rowR(9, ['BIN1','BIN2','VM','GND','GND','GND','GND','VCC'],[PinType.INPUT,PinType.INPUT,PinType.POWER_IN,...Array(4).fill(PinType.POWER_IN),PinType.POWER_IN])],
+  },
+  {
+    partId: 'A4988', partName: 'A4988 Stepper Driver', category: 'Driver', defaultValue: '',
+    footprintId: 'DIP-16', datasheet: '',
+    spiceModel: { type: 'X', directive: '.subckt A4988' },
+    pins: [...rowL(1, ['EN','MS1','MS2','MS3','RST','SLP','STEP','DIR'],[...Array(8).fill(PinType.INPUT)]),
+           ...rowR(9, ['GND','VDD','1B','1A','2A','2B','GND','VMOT'],[PinType.POWER_IN,PinType.POWER_IN,PinType.OUTPUT,PinType.OUTPUT,PinType.OUTPUT,PinType.OUTPUT,PinType.POWER_IN,PinType.POWER_IN])],
+  },
+  {
+    partId: 'IRF540N', partName: 'IRF540N N-MOSFET', category: 'Transistor', defaultValue: '',
+    footprintId: 'TO-220', datasheet: '',
+    spiceModel: { type: 'M', directive: '.model IRF540N NMOS(VTO=4 KP=20 Lambda=0.01)' },
+    pins: [ P(1, 'G', PinType.INPUT, -30, 0), P(2, 'D', PinType.PASSIVE, 0, -20), P(3, 'S', PinType.PASSIVE, 0, 20) ],
+  },
+  {
+    partId: 'IRF9540N', partName: 'IRF9540N P-MOSFET', category: 'Transistor', defaultValue: '',
+    footprintId: 'TO-220', datasheet: '',
+    spiceModel: { type: 'M', directive: '.model IRF9540N PMOS(VTO=-4 KP=10 Lambda=0.01)' },
+    pins: [ P(1, 'G', PinType.INPUT, -30, 0), P(2, 'D', PinType.PASSIVE, 0, -20), P(3, 'S', PinType.PASSIVE, 0, 20) ],
+  },
+
+  // ── Communication ──────────────────────────────────────────────────────────
+  {
+    partId: 'CP2102', partName: 'CP2102 USB-UART', category: 'Communication', defaultValue: '',
+    footprintId: 'QFN-28', datasheet: '',
+    spiceModel: null,
+    pins: [...rowL(1, ['DCD','RI','GND','D+','D-','VDD','REGIN','VBUS'],[PinType.INPUT,PinType.INPUT,PinType.POWER_IN,PinType.BIDIRECTIONAL,PinType.BIDIRECTIONAL,PinType.POWER_IN,PinType.POWER_IN,PinType.POWER_IN]),
+           ...rowR(9, ['RST','NC','SUSPEND','CTS','RTS','RXD','TXD','DTR'],[PinType.INPUT,PinType.NO_CONNECT,PinType.OUTPUT,PinType.INPUT,PinType.OUTPUT,PinType.INPUT,PinType.OUTPUT,PinType.OUTPUT])],
+  },
+  {
+    partId: 'MAX485', partName: 'MAX485 RS-485', category: 'Communication', defaultValue: '',
+    footprintId: 'DIP-8', datasheet: '',
+    spiceModel: null,
+    pins: [
+      P(1, 'RO', PinType.OUTPUT, -30, -21), P(2, 'RE', PinType.INPUT, -30, -7),
+      P(3, 'DE', PinType.INPUT, -30, 7), P(4, 'DI', PinType.INPUT, -30, 21),
+      P(5, 'GND', PinType.POWER_IN, 30, 21), P(6, 'A', PinType.BIDIRECTIONAL, 30, 7),
+      P(7, 'B', PinType.BIDIRECTIONAL, 30, -7), P(8, 'VCC', PinType.POWER_IN, 30, -21),
+    ],
+  },
+  {
+    partId: 'SN65HVD230', partName: 'SN65HVD230 CAN', category: 'Communication', defaultValue: '',
+    footprintId: 'DIP-8', datasheet: '',
+    spiceModel: null,
+    pins: [
+      P(1, 'TXD', PinType.INPUT, -30, -21), P(2, 'GND', PinType.POWER_IN, -30, -7),
+      P(3, 'VCC', PinType.POWER_IN, -30, 7), P(4, 'RXD', PinType.OUTPUT, -30, 21),
+      P(5, 'VREF', PinType.OUTPUT, 30, 21), P(6, 'CANL', PinType.BIDIRECTIONAL, 30, 7),
+      P(7, 'CANH', PinType.BIDIRECTIONAL, 30, -7), P(8, 'RS', PinType.INPUT, 30, -21),
+    ],
+  },
+
+  // ── Connectors (additional) ────────────────────────────────────────────────
+  {
+    partId: 'BARREL_JACK', partName: 'DC Barrel Jack', category: 'Connector', defaultValue: '',
+    footprintId: 'BARREL_JACK', datasheet: '',
+    spiceModel: null,
+    pins: [ P(1, '+', PinType.POWER_IN, -30, -10), P(2, '-', PinType.POWER_IN, -30, 10), P(3, 'SW', PinType.PASSIVE, 30, 0) ],
+  },
+  {
+    partId: 'SCREW_TERM_2P', partName: 'Screw Terminal 2P', category: 'Connector', defaultValue: '',
+    footprintId: 'SCREW_5MM_2P', datasheet: '',
+    spiceModel: null,
+    pins: [ P(1, 'P1', PinType.PASSIVE, -30, 0), P(2, 'P2', PinType.PASSIVE, 30, 0) ],
+  },
+  {
+    partId: 'SCREW_TERM_3P', partName: 'Screw Terminal 3P', category: 'Connector', defaultValue: '',
+    footprintId: 'SCREW_5MM_3P', datasheet: '',
+    spiceModel: null,
+    pins: [ P(1, 'P1', PinType.PASSIVE, -30, 0), P(2, 'P2', PinType.PASSIVE, 0, 0), P(3, 'P3', PinType.PASSIVE, 30, 0) ],
+  },
+  {
+    partId: 'HEADER_2x5', partName: 'Header 2x5', category: 'Connector', defaultValue: '',
+    footprintId: 'HDR_2x5', datasheet: '',
+    spiceModel: null,
+    pins: Array.from({length: 10}, (_, i) => P(i + 1, `P${i + 1}`, PinType.PASSIVE, i < 5 ? -30 : 30, (i % 5 - 2) * 14)),
+  },
+
+  // ── Discrete (additional) ──────────────────────────────────────────────────
+  {
+    partId: 'POT_10K', partName: 'Potentiometer 10K', category: 'Passive', defaultValue: '10k',
+    footprintId: 'POT_3PIN', datasheet: '',
+    spiceModel: { type: 'R', directive: null },
+    pins: [ P(1, 'CW', PinType.PASSIVE, -30, 0), P(2, 'WIPER', PinType.PASSIVE, 0, -20), P(3, 'CCW', PinType.PASSIVE, 30, 0) ],
+  },
+  {
+    partId: 'FUSE', partName: 'Fuse', category: 'Passive', defaultValue: '1A',
+    footprintId: 'FUSE_5x20', datasheet: '',
+    spiceModel: { type: 'R', directive: null },
+    pins: [ P(1, 'P1', PinType.PASSIVE, -30, 0), P(2, 'P2', PinType.PASSIVE, 30, 0) ],
+  },
+  {
+    partId: 'TVS_DIODE', partName: 'TVS Diode', category: 'Passive', defaultValue: '5V',
+    footprintId: 'DO-214AA', datasheet: '',
+    spiceModel: { type: 'D', directive: '.model TVS D(Is=1e-12 BV=5 IBV=10)' },
+    pins: [ P(1, 'A', PinType.PASSIVE, -30, 0), P(2, 'K', PinType.PASSIVE, 30, 0) ],
+  },
+  {
+    partId: '1N5819', partName: '1N5819 Schottky', category: 'Passive', defaultValue: '',
+    footprintId: 'DO-41', datasheet: '',
+    spiceModel: { type: 'D', directive: '.model 1N5819 D(Is=1e-5 N=1.2 Rs=0.04)' },
+    pins: [ P(1, 'A', PinType.PASSIVE, -30, 0), P(2, 'K', PinType.PASSIVE, 30, 0) ],
+  },
+  {
+    partId: 'IRFZ44N', partName: 'IRFZ44N N-MOSFET', category: 'Transistor', defaultValue: '',
+    footprintId: 'TO-220', datasheet: '',
+    spiceModel: { type: 'M', directive: '.model IRFZ44N NMOS(VTO=4 KP=40 Lambda=0.01)' },
+    pins: [ P(1, 'G', PinType.INPUT, -30, 0), P(2, 'D', PinType.PASSIVE, 0, -20), P(3, 'S', PinType.PASSIVE, 0, 20) ],
+  },
 ];
 
 // Index by partId for fast lookup

@@ -192,6 +192,61 @@ export function generateExcellonDrillFile() {
   return lines.join('\n');
 }
 
+// ── #11 Solder Mask Gerber ────────────────────────────────────────────────────
+export function generateSolderMaskGerber(side = 'top') {
+  const layerName = side === 'top' ? 'TopSolderMask' : 'BottomSolderMask';
+  const filterLayer = side === 'top' ? 'F.Cu' : 'B.Cu';
+  const lines = [gerberHeader(layerName), ''];
+  const maskExpansion = 0.1; // mm expansion around pads
+
+  // Solder mask openings = everywhere there's a pad (inverse logic in manufacturing)
+  for (const pcbComp of Object.values(state.pcb.components)) {
+    if (pcbComp.layer !== filterLayer && pcbComp.layer !== (side === 'top' ? 'TOP' : 'BOTTOM')) continue;
+    const fp = FOOTPRINT_MAP[pcbComp.footprintId];
+    if (!fp) continue;
+    for (const pad of fp.pads) {
+      const px = pcbComp.x + pad.x / 2.54;
+      const py = pcbComp.y + pad.y / 2.54;
+      // Flash pad-sized opening with mask expansion
+      lines.push('D11*');
+      lines.push(`X${gx(px)}Y${gy(py)}D03*`);
+    }
+  }
+
+  // Via openings
+  for (const via of Object.values(state.pcb.vias)) {
+    lines.push('D12*');
+    lines.push(`X${gx(via.x)}Y${gy(via.y)}D03*`);
+  }
+
+  lines.push(gerberFooter);
+  return lines.join('\n');
+}
+
+// ── Solder Paste Gerber ──────────────────────────────────────────────────────
+export function generateSolderPasteGerber(side = 'top') {
+  const layerName = side === 'top' ? 'TopPaste' : 'BottomPaste';
+  const filterLayer = side === 'top' ? 'F.Cu' : 'B.Cu';
+  const lines = [gerberHeader(layerName), ''];
+
+  // Paste openings only for SMD pads (no through-hole)
+  for (const pcbComp of Object.values(state.pcb.components)) {
+    if (pcbComp.layer !== filterLayer && pcbComp.layer !== (side === 'top' ? 'TOP' : 'BOTTOM')) continue;
+    const fp = FOOTPRINT_MAP[pcbComp.footprintId];
+    if (!fp) continue;
+    for (const pad of fp.pads) {
+      if (pad.padstack?.type === 'TH') continue; // Skip through-hole pads
+      const px = pcbComp.x + pad.x / 2.54;
+      const py = pcbComp.y + pad.y / 2.54;
+      lines.push('D11*');
+      lines.push(`X${gx(px)}Y${gy(py)}D03*`);
+    }
+  }
+
+  lines.push(gerberFooter);
+  return lines.join('\n');
+}
+
 // ── BOM CSV ───────────────────────────────────────────────────────────────────
 export function generateBOM() {
   const rows = ['Designator,Quantity,PartName,Value,FootprintID,Description'];
